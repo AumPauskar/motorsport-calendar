@@ -6,12 +6,14 @@ const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute:
 const fullDateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 const rangeDateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const localTimezone = () => timezone.replaceAll('_', ' ');
+const formatOrNull = (formatter, value) => value ? formatter.format(value) : 'null';
 
 function getRounds(data, year, series) {
   return (data?.[year]?.[series]?.rounds ?? []).map((round) => {
-    const sessions = Object.entries(round.details ?? {}).map(([name, iso]) => ({ name, date: new Date(iso), iso }));
-    return { ...round, sessions, start: sessions[0]?.date, finish: sessions.at(-1)?.date };
-  }).sort((a, b) => a.start - b.start);
+    const sessions = Object.entries(round.details ?? {}).map(([name, iso]) => ({ name, date: iso ? new Date(iso) : null, iso }));
+    const datedSessions = sessions.filter((session) => session.date);
+    return { ...round, sessions, start: datedSessions[0]?.date ?? null, finish: datedSessions.at(-1)?.date ?? null };
+  }).sort((a, b) => Number(a.round) - Number(b.round));
 }
 
 export default function App() {
@@ -38,7 +40,7 @@ export default function App() {
   const championships = useMemo(() => Object.keys(data?.[year] ?? {}), [data, year]);
   const championshipGroups = useMemo(() => getChampionshipGroups(data?.[year] ?? {}), [data, year]);
   const rounds = useMemo(() => getRounds(data, year, series), [data, year, series]);
-  const nextSession = useMemo(() => rounds.flatMap((round) => round.sessions.map((session) => ({ ...session, round }))).filter((session) => session.date > now).sort((a, b) => a.date - b.date)[0], [rounds, now]);
+  const nextSession = useMemo(() => rounds.flatMap((round) => round.sessions.map((session) => ({ ...session, round }))).filter((session) => session.date && session.date > now).sort((a, b) => a.date - b.date)[0], [rounds, now]);
   const weekSessions = useMemo(() => getAllWeekSessions(data, year, now, weekOffset), [data, year, now, weekOffset]);
 
   function changeYear(nextYear) { setYear(nextYear); setSeries(Object.keys(data?.[nextYear] ?? {})[0] ?? ''); setSelectedRound(null); }
@@ -85,7 +87,7 @@ function NextEventBanner({ session, now, onClick }) {
 
 function RaceCard({ round, onClick }) {
   const mainRace = round.sessions.find((session) => session.name.toLowerCase() === 'race') ?? round.sessions.at(-1);
-  return <button id={`race-round-${round.round}`} className="race-card" onClick={onClick}><div className="card-topline"><span>Round {String(round.round).padStart(2, '0')}</span><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{rangeDateFormat.format(round.start)}</span><span className="range-line" /><span>{rangeDateFormat.format(round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race</small><strong>{fullDateFormat.format(mainRace.date)} · {timeFormat.format(mainRace.date)}</strong></span></div></button>;
+  return <button id={`race-round-${round.round}`} className="race-card" onClick={onClick}><div className="card-topline"><span>Round {String(round.round).padStart(2, '0')}</span><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{formatOrNull(rangeDateFormat, round.start)}</span><span className="range-line" /><span>{formatOrNull(rangeDateFormat, round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race</small><strong>{formatOrNull(fullDateFormat, mainRace?.date)} · {formatOrNull(timeFormat, mainRace?.date)}</strong></span></div></button>;
 }
 
 function getAllWeekSessions(data, year, currentDate, weekOffset = 0) {
@@ -93,7 +95,7 @@ function getAllWeekSessions(data, year, currentDate, weekOffset = 0) {
   const start = new Date(currentDate); const day = (start.getDay() + 6) % 7;
   start.setDate(start.getDate() - day + (weekOffset * 7)); start.setHours(0, 0, 0, 0);
   const end = new Date(start); end.setDate(end.getDate() + 8);
-  return rounds.flatMap((round) => Object.entries(round.details ?? {}).map(([name, iso]) => ({ name, date: new Date(iso), iso, round, series: round.series }))).filter((session) => session.date >= start && session.date < end).sort((a, b) => a.date - b.date);
+  return rounds.flatMap((round) => Object.entries(round.details ?? {}).map(([name, iso]) => ({ name, date: iso ? new Date(iso) : null, iso, round, series: round.series }))).filter((session) => session.date && session.date >= start && session.date < end).sort((a, b) => a.date - b.date);
 }
 
 function getChampionshipGroups(championships) {
@@ -137,5 +139,5 @@ function WeekTimeline({ sessions, now, onClick }) {
 }
 
 function RaceDetails({ round, onClose }) {
-  return <div className="modal-backdrop" onClick={onClose}><section className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">Round {String(round.round).padStart(2, '0')} · {rangeDateFormat.format(round.start)}</p><h2>{round.name}</h2></div><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}</span><span className="session-date">{fullDateFormat.format(session.date)}</span><strong className="session-time">{timeFormat.format(session.date)}</strong></div>)}</div></section></div>;
+  return <div className="modal-backdrop" onClick={onClose}><section className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">Round {String(round.round).padStart(2, '0')} · {formatOrNull(rangeDateFormat, round.start)}</p><h2>{round.name}</h2></div><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}</span><span className="session-date">{formatOrNull(fullDateFormat, session.date)}</span><strong className="session-time">{formatOrNull(timeFormat, session.date)}</strong></div>)}</div></section></div>;
 }
