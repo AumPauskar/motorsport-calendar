@@ -24,18 +24,20 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [page, setPage] = useState('calendar');
+  const [weekOffset, setWeekOffset] = useState(0);
 
   useEffect(() => { fetch('/data.json').then((response) => response.json()).then((json) => { const years = Object.keys(json).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(json); setYear(initialYear); setSeries(Object.keys(json[initialYear] ?? {})[0] ?? ''); }); }, []);
   const dark = themeMode === 'dark' || (themeMode === 'auto' && systemDark);
   useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('pitwall-theme', themeMode); }, [dark, themeMode]);
   useEffect(() => { const media = window.matchMedia?.('(prefers-color-scheme: dark)'); if (!media) return undefined; const update = (event) => setSystemDark(event.matches); media.addEventListener?.('change', update); return () => media.removeEventListener?.('change', update); }, []);
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => { const previous = () => setWeekOffset((offset) => Math.max(0, offset - 1)); const next = () => setWeekOffset((offset) => offset + 1); window.addEventListener('pitwall:previous-week', previous); window.addEventListener('pitwall:next-week', next); return () => { window.removeEventListener('pitwall:previous-week', previous); window.removeEventListener('pitwall:next-week', next); }; }, []);
 
   const years = useMemo(() => Object.keys(data ?? {}).sort((a, b) => b - a), [data]);
   const championships = useMemo(() => Object.keys(data?.[year] ?? {}), [data, year]);
   const rounds = useMemo(() => getRounds(data, year, series), [data, year, series]);
   const nextSession = useMemo(() => rounds.flatMap((round) => round.sessions.map((session) => ({ ...session, round }))).filter((session) => session.date > now).sort((a, b) => a.date - b.date)[0], [rounds, now]);
-  const weekSessions = useMemo(() => getAllWeekSessions(data, year, now), [data, year, now]);
+  const weekSessions = useMemo(() => getAllWeekSessions(data, year, now, weekOffset), [data, year, now, weekOffset]);
 
   function changeYear(nextYear) { setYear(nextYear); setSeries(Object.keys(data?.[nextYear] ?? {})[0] ?? ''); setSelectedRound(null); }
   function goToRound(round) {
@@ -56,7 +58,7 @@ export default function App() {
       <div className="brand-row"><a className="brand" href="/"><span className="brand-mark">P</span><span>PITWALL</span></a><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu">×</button></div>
       <div className="sidebar-scroll">
         <div className="sidebar-section"><p className="eyebrow">Season</p><label className="select-wrap"><span className="sr-only">Select season</span><select value={year} onChange={(event) => changeYear(event.target.value)}>{years.map((item) => <option value={item} key={item}>{item} season</option>)}</select><span className="select-chevron">⌄</span></label></div>
-        <SidebarWeekButton onClick={() => { setPage('week'); setSidebarOpen(false); }} />
+        <div className="sidebar-section"><button className={`series-item week-sidebar-item ${page === 'week' ? 'active' : ''}`} onClick={() => { setPage('week'); setWeekOffset(0); setSidebarOpen(false); }}><span className="series-logo">↗</span><span>This week</span></button></div>
         <div className="sidebar-section"><div className="section-heading"><p className="eyebrow">Championships</p><span className="count-pill">{championships.length}</span></div><div className="series-list">{championships.map((item) => <button className={`series-item ${page === 'calendar' && item === series ? 'active' : ''}`} key={item} onClick={() => { setSeries(item); setPage('calendar'); setSelectedRound(null); setSidebarOpen(false); }}><span className="series-logo">{item.slice(0, 2).toUpperCase()}</span><span>{item}</span></button>)}</div></div>
         <div className="sidebar-note"><span className="note-icon">◒</span><div><strong>Your local time</strong><p>{localTimezone()}</p></div></div>
       </div><div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
@@ -84,21 +86,32 @@ function RaceCard({ round, onClick }) {
   return <button id={`race-round-${round.round}`} className="race-card" onClick={onClick}><div className="card-topline"><span>Round {String(round.round).padStart(2, '0')}</span><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{rangeDateFormat.format(round.start)}</span><span className="range-line" /><span>{rangeDateFormat.format(round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race</small><strong>{fullDateFormat.format(mainRace.date)} · {timeFormat.format(mainRace.date)}</strong></span></div></button>;
 }
 
-function getAllWeekSessions(data, year, currentDate) {
+function getAllWeekSessions(data, year, currentDate, weekOffset = 0) {
   const rounds = Object.entries(data?.[year] ?? {}).flatMap(([seriesName, championship]) => (championship.rounds ?? []).map((round) => ({ ...round, series: seriesName })));
   const start = new Date(currentDate); const day = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - day); start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - day + (weekOffset * 7)); start.setHours(0, 0, 0, 0);
   const end = new Date(start); end.setDate(end.getDate() + 8);
   return rounds.flatMap((round) => Object.entries(round.details ?? {}).map(([name, iso]) => ({ name, date: new Date(iso), iso, round, series: round.series }))).filter((session) => session.date >= start && session.date < end).sort((a, b) => a.date - b.date);
 }
 
-function SidebarWeekButton({ onClick }) {
-  return <button className="sidebar-week-button" onClick={onClick}><span className="week-button-icon">↗</span><span><strong>This week</strong><small>View live session timeline</small></span><span className="week-button-arrow">→</span></button>;
+function VerticalWeekTimeline({ sessions, now, onClick, onPrevious = () => window.dispatchEvent(new CustomEvent('pitwall:previous-week')), onNext = () => window.dispatchEvent(new CustomEvent('pitwall:next-week')) }) {
+  const next = sessions.find((session) => session.date > now);
+  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>{getWeekTitle(sessions)}</h1><p className="subheading">All championships · {localTimezone()} · Monday through next Monday</p></div><div className="week-controls"><button onClick={onPrevious} aria-label="Previous week">‹</button><span className="week-session-count">{sessions.length} sessions</span><button onClick={onNext} aria-label="Next week">›</button></div></div><div className="tree-timeline">{sessions.map((session, index) => <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}><span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}</em></span></button>)}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>There are no scheduled sessions from Monday through next Monday.</p></div>}</section>;
 }
 
-function VerticalWeekTimeline({ sessions, now, onClick }) {
+function LegacyWeekTimeline({ sessions, now, onClick }) {
   const next = sessions.find((session) => session.date > now);
-  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>This week</h1><p className="subheading">All championships · {localTimezone()} · Monday through next Monday</p></div><span className="week-session-count">{sessions.length} sessions</span></div><div className="tree-timeline">{sessions.map((session, index) => <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}><span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}</em></span></button>)}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>There are no scheduled sessions from Monday through next Monday.</p></div>}</section>;
+  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>{getWeekTitle(sessions)}</h1><p className="subheading">All championships · {localTimezone()} · Monday through next Monday</p></div><div className="week-controls"><button onClick={() => window.dispatchEvent(new CustomEvent('pitwall:previous-week'))} aria-label="Previous week">‹</button><span className="week-session-count">{sessions.length} sessions</span><button onClick={() => window.dispatchEvent(new CustomEvent('pitwall:next-week'))} aria-label="Next week">›</button></div></div><div className="tree-timeline">{sessions.map((session, index) => <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}><span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}</em></span></button>)}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>There are no scheduled sessions from Monday through next Monday.</p></div>}</section>;
+}
+
+function getWeekTitle(sessions) {
+  if (!sessions.length) return 'No Races this week :(';
+  const first = new Date(sessions[0].date); const last = new Date(sessions.at(-1).date);
+  const today = new Date(); const currentDay = (today.getDay() + 6) % 7; const thisMonday = new Date(today); thisMonday.setDate(today.getDate() - currentDay); thisMonday.setHours(0, 0, 0, 0);
+  const offset = Math.round((new Date(first.getFullYear(), first.getMonth(), first.getDate()) - thisMonday) / 604800000);
+  if (offset === 0) return 'This week';
+  if (offset === 1) return 'Next week';
+  return `${rangeDateFormat.format(first)} — ${rangeDateFormat.format(last)}`;
 }
 
 function WeekTimeline({ sessions, now, onClick }) {
