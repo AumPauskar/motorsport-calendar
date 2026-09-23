@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import './styles.css';
 
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time';
@@ -29,7 +29,7 @@ export default function App() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedSeries, setExpandedSeries] = useState('');
 
-  useEffect(() => { fetch('/data.json').then((response) => response.json()).then((json) => { const years = Object.keys(json).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(json); setYear(initialYear); setSeries(Object.keys(json[initialYear] ?? {})[0] ?? ''); }); }, []);
+  useEffect(() => { fetch(`${import.meta.env.BASE_URL}data.json`).then((response) => response.json()).then((json) => { const years = Object.keys(json).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(json); setYear(initialYear); setSeries(Object.keys(json[initialYear] ?? {})[0] ?? ''); }); }, []);
   const dark = themeMode === 'dark' || (themeMode === 'auto' && systemDark);
   useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('pitwall-theme', themeMode); }, [dark, themeMode]);
   useEffect(() => { const media = window.matchMedia?.('(prefers-color-scheme: dark)'); if (!media) return undefined; const update = (event) => setSystemDark(event.matches); media.addEventListener?.('change', update); return () => media.removeEventListener?.('change', update); }, []);
