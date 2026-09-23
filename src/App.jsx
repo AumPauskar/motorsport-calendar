@@ -1,0 +1,58 @@
+import { useEffect, useMemo, useState } from 'react';
+import './styles.css';
+
+const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time';
+const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+const fullDateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+const rangeDateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+const localTimezone = () => timezone.replaceAll('_', ' ');
+
+function getRounds(data, year, series) {
+  return (data?.[year]?.[series]?.rounds ?? []).map((round) => {
+    const sessions = Object.entries(round.details ?? {}).map(([name, iso]) => ({ name, date: new Date(iso), iso }));
+    return { ...round, sessions, start: sessions[0]?.date, finish: sessions.at(-1)?.date };
+  }).sort((a, b) => a.start - b.start);
+}
+
+export default function App() {
+  const [data, setData] = useState(null);
+  const [year, setYear] = useState('');
+  const [series, setSeries] = useState('');
+  const [selectedRound, setSelectedRound] = useState(null);
+  const [dark, setDark] = useState(() => localStorage.getItem('pitwall-theme') === 'dark');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => { fetch('/data.json').then((response) => response.json()).then((json) => { const years = Object.keys(json).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(json); setYear(initialYear); setSeries(Object.keys(json[initialYear] ?? {})[0] ?? ''); }); }, []);
+  useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('pitwall-theme', dark ? 'dark' : 'light'); }, [dark]);
+
+  const years = useMemo(() => Object.keys(data ?? {}).sort((a, b) => b - a), [data]);
+  const championships = useMemo(() => Object.keys(data?.[year] ?? {}), [data, year]);
+  const rounds = useMemo(() => getRounds(data, year, series), [data, year, series]);
+
+  function changeYear(nextYear) { setYear(nextYear); setSeries(Object.keys(data?.[nextYear] ?? {})[0] ?? ''); setSelectedRound(null); }
+  if (!data) return <div className="loading-screen">Loading race data<span>•</span></div>;
+
+  return <div className="app-shell">
+    <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+      <div className="brand-row"><a className="brand" href="/"><span className="brand-mark">P</span><span>PITWALL</span></a><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu">×</button></div>
+      <div className="sidebar-scroll">
+        <div className="sidebar-section"><p className="eyebrow">Season</p><label className="select-wrap"><span className="sr-only">Select season</span><select value={year} onChange={(event) => changeYear(event.target.value)}>{years.map((item) => <option value={item} key={item}>{item} season</option>)}</select><span className="select-chevron">⌄</span></label></div>
+        <div className="sidebar-section"><div className="section-heading"><p className="eyebrow">Championships</p><span className="count-pill">{championships.length}</span></div><div className="series-list">{championships.map((item) => <button className={`series-item ${item === series ? 'active' : ''}`} key={item} onClick={() => { setSeries(item); setSelectedRound(null); setSidebarOpen(false); }}><span className="series-logo">{item.slice(0, 2).toUpperCase()}</span><span>{item}</span></button>)}</div></div>
+        <div className="sidebar-note"><span className="note-icon">◒</span><div><strong>Your local time</strong><p>{localTimezone()}</p></div></div>
+      </div><div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
+    </aside>
+    <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb"><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></div><div className="top-actions"><button className={`theme-toggle ${dark ? 'dark' : ''}`} onClick={() => setDark((value) => !value)} aria-label="Switch color theme"><span>☼</span><span className="theme-track"><i /></span><span>☾</span></button></div></header>
+      <div className="content-wrap"><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section>
+        <section className="race-section"><div className="section-heading large"><div><p className="eyebrow accent">The season</p><h2>Race weekends</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.round} round={round} onClick={() => setSelectedRound(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>No races scheduled yet</h3><p>Add rounds to data.json to see them here.</p></div>}</section>
+      </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} onClose={() => setSelectedRound(null)} />}
+  </div>;
+}
+
+function RaceCard({ round, onClick }) {
+  const mainRace = round.sessions.find((session) => session.name.toLowerCase() === 'race') ?? round.sessions.at(-1);
+  return <button className="race-card" onClick={onClick}><div className="card-topline"><span>Round {String(round.round).padStart(2, '0')}</span><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{rangeDateFormat.format(round.start)}</span><span className="range-line" /><span>{rangeDateFormat.format(round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race</small><strong>{fullDateFormat.format(mainRace.date)} · {timeFormat.format(mainRace.date)}</strong></span></div></button>;
+}
+
+function RaceDetails({ round, onClose }) {
+  return <div className="modal-backdrop" onClick={onClose}><section className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">Round {String(round.round).padStart(2, '0')} · {rangeDateFormat.format(round.start)}</p><h2>{round.name}</h2></div><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}</span><span className="session-date">{fullDateFormat.format(session.date)}</span><strong className="session-time">{timeFormat.format(session.date)}</strong></div>)}</div></section></div>;
+}
