@@ -19,13 +19,16 @@ export default function App() {
   const [year, setYear] = useState('');
   const [series, setSeries] = useState('');
   const [selectedRound, setSelectedRound] = useState(null);
-  const [dark, setDark] = useState(() => localStorage.getItem('pitwall-theme') === 'dark');
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('pitwall-theme') || 'auto');
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [page, setPage] = useState('calendar');
 
   useEffect(() => { fetch('/data.json').then((response) => response.json()).then((json) => { const years = Object.keys(json).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(json); setYear(initialYear); setSeries(Object.keys(json[initialYear] ?? {})[0] ?? ''); }); }, []);
-  useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('pitwall-theme', dark ? 'dark' : 'light'); }, [dark]);
+  const dark = themeMode === 'dark' || (themeMode === 'auto' && systemDark);
+  useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('pitwall-theme', themeMode); }, [dark, themeMode]);
+  useEffect(() => { const media = window.matchMedia?.('(prefers-color-scheme: dark)'); if (!media) return undefined; const update = (event) => setSystemDark(event.matches); media.addEventListener?.('change', update); return () => media.removeEventListener?.('change', update); }, []);
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer); }, []);
 
   const years = useMemo(() => Object.keys(data ?? {}).sort((a, b) => b - a), [data]);
@@ -58,7 +61,7 @@ export default function App() {
         <div className="sidebar-note"><span className="note-icon">◒</span><div><strong>Your local time</strong><p>{localTimezone()}</p></div></div>
       </div><div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
     </aside>
-    <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">{page === 'week' ? <strong>This week</strong> : <><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></>}</div><div className="top-actions"><button className={`theme-toggle ${dark ? 'dark' : ''}`} onClick={() => setDark((value) => !value)} aria-label="Switch color theme"><span>☼</span><span className="theme-track"><i /></span><span>☾</span></button></div></header>
+    <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">{page === 'week' ? <strong>This week</strong> : <><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></>}</div><div className="top-actions"><button className={`theme-toggle ${themeMode}`} onClick={() => setThemeMode((mode) => mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light')} aria-label={`Theme: ${themeMode}. Click to switch.`}><span>☼</span><span className={`theme-track mode-${themeMode}`}><i /></span><span className="auto-label">A</span><span>☾</span></button></div></header>
       <div className="content-wrap">{page === 'calendar' ? <><NextEventBanner session={nextSession} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section>
         <section className="race-section"><div className="section-heading large"><div><p className="eyebrow accent">The season</p><h2>Race weekends</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.round} round={round} onClick={() => setSelectedRound(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>No races scheduled yet</h3><p>Add rounds to data.json to see them here.</p></div>}</section></> : <><NextEventBanner session={weekSessions.find((session) => session.date > now)} now={now} onClick={goToRound} /><VerticalWeekTimeline sessions={weekSessions} now={now} onClick={goToRound} /></>}
         </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} onClose={() => setSelectedRound(null)} />}
