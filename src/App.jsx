@@ -21,15 +21,24 @@ export default function App() {
   const [selectedRound, setSelectedRound] = useState(null);
   const [dark, setDark] = useState(() => localStorage.getItem('pitwall-theme') === 'dark');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => { fetch('/data.json').then((response) => response.json()).then((json) => { const years = Object.keys(json).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(json); setYear(initialYear); setSeries(Object.keys(json[initialYear] ?? {})[0] ?? ''); }); }, []);
   useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('pitwall-theme', dark ? 'dark' : 'light'); }, [dark]);
+  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer); }, []);
 
   const years = useMemo(() => Object.keys(data ?? {}).sort((a, b) => b - a), [data]);
   const championships = useMemo(() => Object.keys(data?.[year] ?? {}), [data, year]);
   const rounds = useMemo(() => getRounds(data, year, series), [data, year, series]);
+  const nextSession = useMemo(() => rounds.flatMap((round) => round.sessions.map((session) => ({ ...session, round }))).filter((session) => session.date > now).sort((a, b) => a.date - b.date)[0], [rounds, now]);
 
   function changeYear(nextYear) { setYear(nextYear); setSeries(Object.keys(data?.[nextYear] ?? {})[0] ?? ''); setSelectedRound(null); }
+  function goToRound(round) {
+    document.getElementById(`race-round-${round.round}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const card = document.getElementById(`race-round-${round.round}`);
+    card?.classList.add('is-target');
+    window.setTimeout(() => card?.classList.remove('is-target'), 1800);
+  }
   if (!data) return <div className="loading-screen">Loading race data<span>•</span></div>;
 
   return <div className="app-shell">
@@ -42,15 +51,26 @@ export default function App() {
       </div><div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
     </aside>
     <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb"><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></div><div className="top-actions"><button className={`theme-toggle ${dark ? 'dark' : ''}`} onClick={() => setDark((value) => !value)} aria-label="Switch color theme"><span>☼</span><span className="theme-track"><i /></span><span>☾</span></button></div></header>
-      <div className="content-wrap"><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section>
+      <div className="content-wrap"><NextEventBanner session={nextSession} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section>
         <section className="race-section"><div className="section-heading large"><div><p className="eyebrow accent">The season</p><h2>Race weekends</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.round} round={round} onClick={() => setSelectedRound(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>No races scheduled yet</h3><p>Add rounds to data.json to see them here.</p></div>}</section>
       </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} onClose={() => setSelectedRound(null)} />}
   </div>;
 }
 
+function NextEventBanner({ session, now, onClick }) {
+  if (!session) return <div className="next-event-banner empty"><span className="next-event-kicker">Next up</span><strong>No upcoming sessions in this season</strong></div>;
+  const remaining = Math.max(0, session.date - now);
+  const totalSeconds = Math.floor(remaining / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return <button className="next-event-banner" onClick={() => onClick(session.round)}><span className="next-event-kicker"><i />Next session</span><span className="next-event-copy"><strong>{session.round.name}</strong><small>{session.name.replaceAll('_', ' ')} · {fullDateFormat.format(session.date)} at {timeFormat.format(session.date)}</small></span><span className="countdown" aria-label={`${days} days, ${hours} hours, ${minutes} minutes, ${seconds} seconds remaining`}><b>{String(days).padStart(2, '0')}</b><em>d</em><b>{String(hours).padStart(2, '0')}</b><em>h</em><b>{String(minutes).padStart(2, '0')}</b><em>m</em><b>{String(seconds).padStart(2, '0')}</b><em>s</em></span><span className="next-event-arrow">↗</span></button>;
+}
+
 function RaceCard({ round, onClick }) {
   const mainRace = round.sessions.find((session) => session.name.toLowerCase() === 'race') ?? round.sessions.at(-1);
-  return <button className="race-card" onClick={onClick}><div className="card-topline"><span>Round {String(round.round).padStart(2, '0')}</span><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{rangeDateFormat.format(round.start)}</span><span className="range-line" /><span>{rangeDateFormat.format(round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race</small><strong>{fullDateFormat.format(mainRace.date)} · {timeFormat.format(mainRace.date)}</strong></span></div></button>;
+  return <button id={`race-round-${round.round}`} className="race-card" onClick={onClick}><div className="card-topline"><span>Round {String(round.round).padStart(2, '0')}</span><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{rangeDateFormat.format(round.start)}</span><span className="range-line" /><span>{rangeDateFormat.format(round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race</small><strong>{fullDateFormat.format(mainRace.date)} · {timeFormat.format(mainRace.date)}</strong></span></div></button>;
 }
 
 function RaceDetails({ round, onClose }) {
