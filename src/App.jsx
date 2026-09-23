@@ -25,6 +25,7 @@ export default function App() {
   const [now, setNow] = useState(() => new Date());
   const [page, setPage] = useState('calendar');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [expandedSeries, setExpandedSeries] = useState('');
 
   useEffect(() => { fetch('/data.json').then((response) => response.json()).then((json) => { const years = Object.keys(json).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(json); setYear(initialYear); setSeries(Object.keys(json[initialYear] ?? {})[0] ?? ''); }); }, []);
   const dark = themeMode === 'dark' || (themeMode === 'auto' && systemDark);
@@ -35,6 +36,7 @@ export default function App() {
 
   const years = useMemo(() => Object.keys(data ?? {}).sort((a, b) => b - a), [data]);
   const championships = useMemo(() => Object.keys(data?.[year] ?? {}), [data, year]);
+  const championshipGroups = useMemo(() => getChampionshipGroups(data?.[year] ?? {}), [data, year]);
   const rounds = useMemo(() => getRounds(data, year, series), [data, year, series]);
   const nextSession = useMemo(() => rounds.flatMap((round) => round.sessions.map((session) => ({ ...session, round }))).filter((session) => session.date > now).sort((a, b) => a.date - b.date)[0], [rounds, now]);
   const weekSessions = useMemo(() => getAllWeekSessions(data, year, now, weekOffset), [data, year, now, weekOffset]);
@@ -59,7 +61,7 @@ export default function App() {
       <div className="sidebar-scroll">
         <div className="sidebar-section"><p className="eyebrow">Season</p><label className="select-wrap"><span className="sr-only">Select season</span><select value={year} onChange={(event) => changeYear(event.target.value)}>{years.map((item) => <option value={item} key={item}>{item} season</option>)}</select><span className="select-chevron">⌄</span></label></div>
         <div className="sidebar-section"><button className={`series-item week-sidebar-item ${page === 'week' ? 'active' : ''}`} onClick={() => { setPage('week'); setWeekOffset(0); setSidebarOpen(false); }}><span className="series-logo">↗</span><span>This week</span></button></div>
-        <div className="sidebar-section"><div className="section-heading"><p className="eyebrow">Championships</p><span className="count-pill">{championships.length}</span></div><div className="series-list">{championships.map((item) => <button className={`series-item ${page === 'calendar' && item === series ? 'active' : ''}`} key={item} onClick={() => { setSeries(item); setPage('calendar'); setSelectedRound(null); setSidebarOpen(false); }}><span className="series-logo">{item.slice(0, 2).toUpperCase()}</span><span>{item}</span></button>)}</div></div>
+        <div className="sidebar-section"><div className="section-heading"><p className="eyebrow">Championships</p><span className="count-pill">{championships.length}</span></div><ChampionshipList groups={championshipGroups} page={page} series={series} expandedSeries={expandedSeries} setExpandedSeries={setExpandedSeries} onSelect={(item) => { setSeries(item); setPage('calendar'); setSelectedRound(null); setSidebarOpen(false); }} /></div>
         <div className="sidebar-note"><span className="note-icon">◒</span><div><strong>Your local time</strong><p>{localTimezone()}</p></div></div>
       </div><div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
     </aside>
@@ -92,6 +94,17 @@ function getAllWeekSessions(data, year, currentDate, weekOffset = 0) {
   start.setDate(start.getDate() - day + (weekOffset * 7)); start.setHours(0, 0, 0, 0);
   const end = new Date(start); end.setDate(end.getDate() + 8);
   return rounds.flatMap((round) => Object.entries(round.details ?? {}).map(([name, iso]) => ({ name, date: new Date(iso), iso, round, series: round.series }))).filter((session) => session.date >= start && session.date < end).sort((a, b) => a.date - b.date);
+}
+
+function getChampionshipGroups(championships) {
+  const groups = new Map();
+  Object.entries(championships).forEach(([name, config]) => { if (!config.feeder) groups.set(name, { name, children: [] }); });
+  Object.entries(championships).forEach(([name, config]) => { if (config.feeder && config.parent) { if (!groups.has(config.parent)) groups.set(config.parent, { name: config.parent, children: [] }); groups.get(config.parent).children.push(name); } });
+  return [...groups.values()];
+}
+
+function ChampionshipList({ groups, page, series, expandedSeries, setExpandedSeries, onSelect }) {
+  return <div className="series-list">{groups.map((group) => <div className="series-group" key={group.name}><button className={`series-item ${page === 'calendar' && series === group.name ? 'active' : ''}`} onClick={() => { onSelect(group.name); setExpandedSeries((current) => current === group.name ? '' : group.name); }}><span className="series-logo">{group.name.slice(0, 2).toUpperCase()}</span><span>{group.name}</span>{group.children.length > 0 && <span className={`feeder-chevron ${expandedSeries === group.name ? 'expanded' : ''}`}>⌄</span>}</button>{group.children.length > 0 && expandedSeries === group.name && <div className="feeder-list">{group.children.map((child) => <button className={`series-item feeder-item ${page === 'calendar' && series === child ? 'active' : ''}`} key={child} onClick={() => onSelect(child)}><span className="series-logo">{child.slice(0, 2).toUpperCase()}</span><span>{child}</span></button>)}</div>}</div>)}</div>;
 }
 
 function VerticalWeekTimeline({ sessions, now, onClick, onPrevious = () => window.dispatchEvent(new CustomEvent('pitwall:previous-week')), onNext = () => window.dispatchEvent(new CustomEvent('pitwall:next-week')) }) {
