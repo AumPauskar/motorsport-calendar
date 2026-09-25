@@ -1,4 +1,4 @@
-# Pitwall — Motorsport calendar
+# 🅱️eetstop — Motorsport calendar
 
 ## Run locally
 
