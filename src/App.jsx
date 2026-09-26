@@ -99,6 +99,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [page, setPage] = useState('calendar');
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedSeries, setExpandedSeries] = useState('');
   const weekCaptureRef = useRef(null);
@@ -108,6 +109,7 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('beetstop-theme', themeMode); }, [dark, themeMode]);
   useEffect(() => { const media = window.matchMedia?.('(prefers-color-scheme: dark)'); if (!media) return undefined; const update = (event) => setSystemDark(event.matches); media.addEventListener?.('change', update); return () => media.removeEventListener?.('change', update); }, []);
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => { const updateScrollTopVisibility = () => setShowScrollTop(window.scrollY > 320); window.addEventListener('scroll', updateScrollTopVisibility, { passive: true }); updateScrollTopVisibility(); return () => window.removeEventListener('scroll', updateScrollTopVisibility); }, []);
   useEffect(() => { const previous = () => setWeekOffset((offset) => Math.max(0, offset - 1)); const next = () => setWeekOffset((offset) => offset + 1); window.addEventListener('beetstop:previous-week', previous); window.addEventListener('beetstop:next-week', next); return () => { window.removeEventListener('beetstop:previous-week', previous); window.removeEventListener('beetstop:next-week', next); }; }, []);
 
   const years = useMemo(() => Object.keys(data ?? {}).sort((a, b) => b - a), [data]);
@@ -153,7 +155,7 @@ export default function App() {
     </aside>
     <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">{page === 'week' ? <strong>This week</strong> : <><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></>}</div><div className="top-actions"><button className={`theme-toggle ${themeMode}`} onClick={() => setThemeMode((mode) => mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light')} aria-label={`Theme: ${themeMode}. Click to switch.`}><span>☼</span><span className={`theme-track mode-${themeMode}`}><i /></span><span className="auto-label">A</span><span>☾</span></button></div></header>
       <div className="content-wrap">{page === 'calendar' ? <><NextEventBanner sessions={liveSeriesSessions.length ? liveSeriesSessions : nextSession ? [nextSession] : []} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section><RaceWeekendSection title="Race weekends" rounds={activeRounds} onSelect={setSelectedRound} emptyMessage="No upcoming race weekends" />{elapsedRounds.length > 0 && <RaceWeekendSection title="Elapsed race weekends" rounds={elapsedRounds} onSelect={setSelectedRound} elapsed />}</> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline captureRef={weekCaptureRef} sessions={filteredWeekSessions} now={now} weekOffset={weekOffset} seriesGroups={championshipGroups} seriesFilter={weekSeriesFilter} setSeriesFilter={(value) => { setWeekSeriesFilter(value); setWeekFilterInverted(false); }} filterInverted={weekFilterInverted} setFilterInverted={setWeekFilterInverted} onClick={goToRound} /></>}
-        </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} now={now} onClose={() => setSelectedRound(null)} />}
+        </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} now={now} onClose={() => setSelectedRound(null)} />}{showScrollTop && <button className="scroll-top-button" type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Scroll to top" title="Scroll to top">↑</button>}
   </div>;
 }
 
