@@ -24,6 +24,16 @@ function getRounds(data, year, series) {
   }).sort((a, b) => Number(a.round) - Number(b.round));
 }
 
+function isRoundElapsed(round, now) {
+  const datedSessions = round.sessions.filter((session) => session.date && !Number.isNaN(session.date.getTime()));
+  if (!datedSessions.length) return false;
+  const lastSession = datedSessions.reduce((latest, session) => session.date > latest.date ? session : latest);
+  const completion = Number.isFinite(lastSession.duration)
+    ? new Date(lastSession.date.getTime() + lastSession.duration * 60000)
+    : lastSession.date;
+  return completion <= now;
+}
+
 function getDurationMap(championship) {
   const configured = championship?.['round-duration'];
   if (Array.isArray(configured)) return configured.find((item) => item && typeof item === 'object') ?? {};
@@ -99,6 +109,8 @@ export default function App() {
   const championships = useMemo(() => Object.keys(data?.[year] ?? {}), [data, year]);
   const championshipGroups = useMemo(() => getChampionshipGroups(data?.[year] ?? {}), [data, year]);
   const rounds = useMemo(() => getRounds(data, year, series), [data, year, series]);
+  const activeRounds = useMemo(() => rounds.filter((round) => !isRoundElapsed(round, now)), [rounds, now]);
+  const elapsedRounds = useMemo(() => rounds.filter((round) => isRoundElapsed(round, now)), [rounds, now]);
   const seriesSessions = useMemo(() => rounds.flatMap((round) => round.sessions.map((session) => ({ ...session, round }))), [rounds]);
   const liveSeriesSessions = useMemo(() => getLiveSessions(seriesSessions, now), [seriesSessions, now]);
   const nextSession = useMemo(() => getNextSession(seriesSessions, now), [seriesSessions, now]);
@@ -135,8 +147,7 @@ export default function App() {
       </div><div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
     </aside>
     <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">{page === 'week' ? <strong>This week</strong> : <><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></>}</div><div className="top-actions"><button className={`theme-toggle ${themeMode}`} onClick={() => setThemeMode((mode) => mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light')} aria-label={`Theme: ${themeMode}. Click to switch.`}><span>☼</span><span className={`theme-track mode-${themeMode}`}><i /></span><span className="auto-label">A</span><span>☾</span></button></div></header>
-      <div className="content-wrap">{page === 'calendar' ? <><NextEventBanner sessions={liveSeriesSessions.length ? liveSeriesSessions : nextSession ? [nextSession] : []} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section>
-        <section className="race-section"><div className="section-heading large"><div><p className="eyebrow accent">The season</p><h2>Race weekends</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.round} round={round} onClick={() => setSelectedRound(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>No races scheduled yet</h3><p>Add rounds to data.json to see them here.</p></div>}</section></> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline captureRef={weekCaptureRef} sessions={filteredWeekSessions} now={now} weekOffset={weekOffset} seriesGroups={championshipGroups} seriesFilter={weekSeriesFilter} setSeriesFilter={(value) => { setWeekSeriesFilter(value); setWeekFilterInverted(false); }} filterInverted={weekFilterInverted} setFilterInverted={setWeekFilterInverted} onClick={goToRound} /></>}
+      <div className="content-wrap">{page === 'calendar' ? <><NextEventBanner sessions={liveSeriesSessions.length ? liveSeriesSessions : nextSession ? [nextSession] : []} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section><RaceWeekendSection title="Race weekends" rounds={activeRounds} onSelect={setSelectedRound} emptyMessage="No upcoming race weekends" />{elapsedRounds.length > 0 && <RaceWeekendSection title="Elapsed race weekends" rounds={elapsedRounds} onSelect={setSelectedRound} elapsed />}</> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline captureRef={weekCaptureRef} sessions={filteredWeekSessions} now={now} weekOffset={weekOffset} seriesGroups={championshipGroups} seriesFilter={weekSeriesFilter} setSeriesFilter={(value) => { setWeekSeriesFilter(value); setWeekFilterInverted(false); }} filterInverted={weekFilterInverted} setFilterInverted={setWeekFilterInverted} onClick={goToRound} /></>}
         </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} onClose={() => setSelectedRound(null)} />}
   </div>;
 }
@@ -159,6 +170,10 @@ function NextEventBanner({ sessions, now, onClick }) {
 function RaceCard({ round, onClick }) {
   const mainRace = round.sessions.find((session) => session.name.toLowerCase() === 'race') ?? round.sessions.at(-1);
   return <button id={`race-round-${round.round}`} className="race-card" onClick={onClick}><div className="card-topline"><span>Round {String(round.round).padStart(2, '0')}</span><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{formatOrNull(rangeDateFormat, round.start)}</span><span className="range-line" /><span>{formatOrNull(rangeDateFormat, round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race{formatDuration(mainRace?.duration) ? ` · ${formatDuration(mainRace.duration)}` : ''}</small><strong>{formatOrNull(fullDateFormat, mainRace?.date)} · {formatOrNull(timeFormat, mainRace?.date)}</strong></span></div></button>;
+}
+
+function RaceWeekendSection({ title, rounds, onSelect, elapsed = false, emptyMessage = 'No races scheduled yet' }) {
+  return <section className={`race-section ${elapsed ? 'elapsed-race-section' : ''}`}><div className="section-heading large"><div><p className="eyebrow accent">{elapsed ? 'History' : 'The season'}</p><h2>{title}</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.round} round={round} onClick={() => onSelect(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>{emptyMessage}</h3><p>{elapsed ? 'Completed race weekends will appear here.' : 'Add rounds to data.json to see them here.'}</p></div>}</section>;
 }
 
 function getAllWeekSessions(data, year, currentDate, weekOffset = 0) {
