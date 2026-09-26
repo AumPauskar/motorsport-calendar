@@ -1,6 +1,15 @@
 {
   "2026": {
     "Formula 1": {
+      "round-duration" : [
+        {
+          "FP": 60,
+          "Qualifying": 60,
+          "Sprint": 45,
+          "Sprint Qualifying": 30,
+          "Race": 120
+        }
+      ],
       "rounds": [
         {
           "round": 15,
@@ -106,6 +115,14 @@
     "Formula 2": {
       "feeder": true,
       "parent": "Formula 1",
+      "round-duration" : [
+        {
+          "Practice": 30,
+          "Qualifying": 30,
+          "Sprint": 45,
+          "Feature_Race": 60
+        }
+      ],
       "rounds": [
         {
           "round": 12,
@@ -144,6 +161,15 @@
     "F1 Academy": {
       "feeder": true,
       "parent": "Formula 1",
+      "round-duration" : [
+        {
+          "FP": 30,
+          "Qualifying": 30,
+          "Reverse_Grid_Race": 45,
+          "Feature_Race": 60,
+          "Opening_Race": 60
+        }
+      ],
       "rounds": [
         {
           "round": 5,
@@ -169,6 +195,18 @@
       ]
     },
     "MotoGP": {
+      "round-duration" : [
+        {
+          "FP1": 45,
+          "Practice": 60,
+          "FP2": 30,
+          "Qualifying_Q1": 15,
+          "Qualifying_Q2": 15,
+          "Sprint": 25,
+          "Warm_Up": 10,
+          "Race": 45
+        }
+      ],
       "rounds": [
         {
           "round": 16,
@@ -273,6 +311,16 @@
     "Moto2": {
       "feeder": true,
       "parent": "MotoGP",
+      "round-duration" : [
+        {
+          "FP1": 35,
+          "Practice": 40,
+          "FP2": 30,
+          "Qualifying_Q1": 15,
+          "Qualifying_Q2": 15,
+          "Race": 40
+        }
+      ],
       "rounds": [
         {
           "round": 16,
@@ -363,6 +411,16 @@
     "Moto3": {
       "feeder": true,
       "parent": "MotoGP",
+      "round-duration" : [
+        {
+          "FP1": 35,
+          "Practice": 40,
+          "FP2": 30,
+          "Qualifying_Q1": 15,
+          "Qualifying_Q2": 15,
+          "Race": 40
+        }
+      ],
       "rounds": [
         {
           "round": 16,
@@ -464,7 +522,8 @@
             "Qualifying_Hypercar": "2026-09-26T05:40:00Z",
             "Hyperpole_Hypercar": "2026-09-26T06:00:00Z",
             "Race": "2026-09-27T02:00:00Z"
-          }
+          },
+          "race-duration": 360
         },
         {
           "round": 7,
@@ -478,7 +537,8 @@
             "Qualifying_Hypercar": "2026-10-17T11:10:00Z",
             "Hyperpole_Hypercar": "2026-10-17T11:30:00Z",
             "Race": "2026-10-18T10:00:00Z"
-          }
+          },
+          "race-duration": 360
         },
         {
           "round": 8,
@@ -492,7 +552,8 @@
             "Qualifying_Hypercar": null,
             "Hyperpole_Hypercar": null,
             "Race": "2026-11-08T10:00:00Z"
-          }
+          },
+          "race-duration": 360
         }
       ]
     },
@@ -507,7 +568,8 @@
             "FP3": "2026-10-01T23:30:00Z",
             "Qualifying": "2026-10-02T18:20:00Z",
             "Race": "2026-10-03T16:10:00Z"
-          }
+          },
+          "race-duration": 600
         }
       ]
     },
