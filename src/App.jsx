@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import html2canvas from 'html2canvas';
 import raceData from '../data.json';
 import './styles.css';
 
@@ -70,6 +71,7 @@ export default function App() {
   const [page, setPage] = useState('calendar');
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedSeries, setExpandedSeries] = useState('');
+  const weekCaptureRef = useRef(null);
 
   useEffect(() => { const years = Object.keys(raceData).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(raceData); setYear(initialYear); setSeries(Object.keys(raceData[initialYear] ?? {})[0] ?? ''); }, []);
   const dark = themeMode === 'dark' || (themeMode === 'auto' && systemDark);
@@ -119,7 +121,7 @@ export default function App() {
     </aside>
     <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">{page === 'week' ? <strong>This week</strong> : <><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></>}</div><div className="top-actions"><button className={`theme-toggle ${themeMode}`} onClick={() => setThemeMode((mode) => mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light')} aria-label={`Theme: ${themeMode}. Click to switch.`}><span>☼</span><span className={`theme-track mode-${themeMode}`}><i /></span><span className="auto-label">A</span><span>☾</span></button></div></header>
       <div className="content-wrap">{page === 'calendar' ? <><NextEventBanner sessions={liveSeriesSessions.length ? liveSeriesSessions : nextSession ? [nextSession] : []} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section>
-        <section className="race-section"><div className="section-heading large"><div><p className="eyebrow accent">The season</p><h2>Race weekends</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.round} round={round} onClick={() => setSelectedRound(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>No races scheduled yet</h3><p>Add rounds to data.json to see them here.</p></div>}</section></> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline sessions={filteredWeekSessions} now={now} weekOffset={weekOffset} seriesGroups={championshipGroups} seriesFilter={weekSeriesFilter} setSeriesFilter={(value) => { setWeekSeriesFilter(value); setWeekFilterInverted(false); }} filterInverted={weekFilterInverted} setFilterInverted={setWeekFilterInverted} onClick={goToRound} /></>}
+        <section className="race-section"><div className="section-heading large"><div><p className="eyebrow accent">The season</p><h2>Race weekends</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.round} round={round} onClick={() => setSelectedRound(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>No races scheduled yet</h3><p>Add rounds to data.json to see them here.</p></div>}</section></> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline captureRef={weekCaptureRef} sessions={filteredWeekSessions} now={now} weekOffset={weekOffset} seriesGroups={championshipGroups} seriesFilter={weekSeriesFilter} setSeriesFilter={(value) => { setWeekSeriesFilter(value); setWeekFilterInverted(false); }} filterInverted={weekFilterInverted} setFilterInverted={setWeekFilterInverted} onClick={goToRound} /></>}
         </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} onClose={() => setSelectedRound(null)} />}
   </div>;
 }
@@ -163,7 +165,46 @@ function ChampionshipList({ groups, page, series, expandedSeries, setExpandedSer
   return <div className="series-list">{groups.map((group) => <div className="series-group" key={group.name}><button className={`series-item ${page === 'calendar' && series === group.name ? 'active' : ''}`} onClick={() => { onSelect(group.name); setExpandedSeries((current) => current === group.name ? '' : group.name); }}><span className="series-logo">{group.name.slice(0, 2).toUpperCase()}</span><span>{group.name}</span>{group.children.length > 0 && <span className={`feeder-chevron ${expandedSeries === group.name ? 'expanded' : ''}`}>⌄</span>}</button>{group.children.length > 0 && expandedSeries === group.name && <div className="feeder-list">{group.children.map((child) => <button className={`series-item feeder-item ${page === 'calendar' && series === child ? 'active' : ''}`} key={child} onClick={() => onSelect(child)}><span className="series-logo">{child.slice(0, 2).toUpperCase()}</span><span>{child}</span></button>)}</div>}</div>)}</div>;
 }
 
-function VerticalWeekTimeline({ sessions, now, onClick, weekOffset = 0, seriesGroups = [], seriesFilter, setSeriesFilter, filterInverted, setFilterInverted, onPrevious = () => window.dispatchEvent(new CustomEvent('beetstop:previous-week')), onNext = () => window.dispatchEvent(new CustomEvent('beetstop:next-week')) }) {
+function ScreenshotButton({ targetRef, filename }) {
+  const [busy, setBusy] = useState(false);
+  const captureId = useRef(`screenshot-${Math.random().toString(36).slice(2)}`).current;
+  const capture = async () => {
+    if (!targetRef.current || busy) return;
+    setBusy(true);
+    targetRef.current.dataset.screenshotTarget = captureId;
+    try {
+      const canvas = await html2canvas(targetRef.current, { backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--paper').trim() || '#fbfaf7', scale: Math.min(2, window.devicePixelRatio || 1), useCORS: true, onclone: (clonedDocument) => {
+        const target = clonedDocument.querySelector(`[data-screenshot-target="${captureId}"]`);
+        if (!target) return;
+        target.style.position = 'relative';
+        const watermark = clonedDocument.createElement('div');
+        watermark.textContent = 'taken on 🅱️eetstop';
+        watermark.style.cssText = 'position:absolute;right:18px;bottom:14px;padding:6px 9px;border-radius:4px;background:rgba(23,23,23,.82);color:#fff;font:10px "DM Mono",monospace;letter-spacing:.04em;z-index:20;';
+        target.appendChild(watermark);
+      } });
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('Screenshot could not be created');
+      const file = new File([blob], `${filename}.png`, { type: 'image/png' });
+      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+        await navigator.share({ title: 'Beetstop race schedule', text: 'Taken on 🅱️eetstop', files: [file] });
+      } else {
+        const link = document.createElement('a');
+        link.download = file.name;
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') console.error('Screenshot failed', error);
+    } finally {
+      if (targetRef.current?.dataset.screenshotTarget === captureId) delete targetRef.current.dataset.screenshotTarget;
+      setBusy(false);
+    }
+  };
+  return <button className="screenshot-button" type="button" data-html2canvas-ignore="true" onClick={capture} disabled={busy} aria-label="Share or download a screenshot">{busy ? 'Preparing…' : 'Share snapshot'}</button>;
+}
+
+function VerticalWeekTimeline({ captureRef, sessions, now, onClick, weekOffset = 0, seriesGroups = [], seriesFilter, setSeriesFilter, filterInverted, setFilterInverted, onPrevious = () => window.dispatchEvent(new CustomEvent('beetstop:previous-week')), onNext = () => window.dispatchEvent(new CustomEvent('beetstop:next-week')) }) {
   const liveSessions = getLiveSessions(sessions, now);
   const next = liveSessions[0] ?? sessions.find((session) => session.date > now);
   const currentSessionIndex = weekOffset === 0 ? sessions.findIndex((session) => session.date > now) : -1;
@@ -176,7 +217,7 @@ function VerticalWeekTimeline({ sessions, now, onClick, weekOffset = 0, seriesGr
     const target = marker.getBoundingClientRect().top + window.scrollY - (window.innerHeight / 2);
     window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
   };
-  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>{getWeekTitle(sessions)}</h1><p className="subheading">{seriesFilter === 'all' ? 'All championships' : `${filterInverted ? 'All except' : 'Only'} ${seriesFilter}`} · {localTimezone()} · Monday through next Monday</p></div><div className="week-toolbar"><label className="week-filter"><span>Series</span><select value={seriesFilter} onChange={(event) => setSeriesFilter(event.target.value)} aria-label="Filter this week by series"><option value="all">All series</option>{seriesGroups.map((group) => <optgroup label={group.name} key={group.name}><option value={group.name}>All {group.name}</option>{group.children.map((child) => <option value={child} key={child}>↳ {child}</option>)}</optgroup>)}</select></label><button className="invert-filter" type="button" disabled={seriesFilter === 'all'} aria-pressed={filterInverted} onClick={() => setFilterInverted((value) => !value)}>Invert</button><button className="today-filter" type="button" disabled={!hasCurrentMarker} onClick={scrollToToday}>Today</button><div className="week-controls"><button onClick={onPrevious} aria-label="Previous week">‹</button><span className="week-session-count">{sessions.length} sessions</span><button onClick={onNext} aria-label="Next week">›</button></div></div></div><div className="tree-timeline">{sessions.map((session, index) => { const live = isSessionLive(session, now); return <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''} ${live ? 'tree-live' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}>{index === markerSessionIndex && hasCurrentMarker && <span id="current-time-marker" className="current-week-marker" aria-label={`Current local time: ${timeFormat.format(now)}`}><span>{timeFormat.format(now)}</span></span>}<span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}{formatDuration(session.duration) ? ` · ${formatDuration(session.duration)}` : ''}</em>{live && <span className="live-badge">Live now</span>}</span></button>; })}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>{seriesFilter === 'all' ? 'There are no scheduled sessions from Monday through next Monday.' : 'No sessions match this series filter.'}</p></div>}</section>;
+  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>{getWeekTitle(sessions)}</h1><p className="subheading">{seriesFilter === 'all' ? 'All championships' : `${filterInverted ? 'All except' : 'Only'} ${seriesFilter}`} · {localTimezone()} · Monday through next Monday</p></div><div className="week-toolbar"><label className="week-filter"><span>Series</span><select value={seriesFilter} onChange={(event) => setSeriesFilter(event.target.value)} aria-label="Filter this week by series"><option value="all">All series</option>{seriesGroups.map((group) => <optgroup label={group.name} key={group.name}><option value={group.name}>All {group.name}</option>{group.children.map((child) => <option value={child} key={child}>↳ {child}</option>)}</optgroup>)}</select></label><button className="invert-filter" type="button" disabled={seriesFilter === 'all'} aria-pressed={filterInverted} onClick={() => setFilterInverted((value) => !value)}>Invert</button><button className="today-filter" type="button" disabled={!hasCurrentMarker} onClick={scrollToToday}>Today</button><ScreenshotButton targetRef={captureRef} filename="beetstop-this-week" /><div className="week-controls"><button onClick={onPrevious} aria-label="Previous week">‹</button><span className="week-session-count">{sessions.length} sessions</span><button onClick={onNext} aria-label="Next week">›</button></div></div></div><div className="tree-timeline" ref={captureRef} data-screenshot-target>{sessions.map((session, index) => { const live = isSessionLive(session, now); return <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''} ${live ? 'tree-live' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}>{index === markerSessionIndex && hasCurrentMarker && <span id="current-time-marker" className="current-week-marker" aria-label={`Current local time: ${timeFormat.format(now)}`}><span>{timeFormat.format(now)}</span></span>}<span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}{formatDuration(session.duration) ? ` · ${formatDuration(session.duration)}` : ''}</em>{live && <span className="live-badge">Live now</span>}</span></button>; })}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>{seriesFilter === 'all' ? 'There are no scheduled sessions from Monday through next Monday.' : 'No sessions match this series filter.'}</p></div>}</section>;
 }
 
 function LegacyWeekTimeline({ sessions, now, onClick }) {
@@ -204,5 +245,6 @@ function WeekTimeline({ sessions, now, onClick }) {
 }
 
 function RaceDetails({ round, onClose }) {
-  return <div className="modal-backdrop" onClick={onClose}><section className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">Round {String(round.round).padStart(2, '0')} · {formatOrNull(rangeDateFormat, round.start)}</p><h2>{round.name}</h2></div><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}</span><span className="session-date">{formatOrNull(fullDateFormat, session.date)}</span><strong className="session-time">{formatOrNull(timeFormat, session.date)}{formatDuration(session.duration) ? <small className="session-duration">{formatDuration(session.duration)}</small> : null}</strong></div>)}</div></section></div>;
+  const detailsRef = useRef(null);
+  return <div className="modal-backdrop" onClick={onClose}><section ref={detailsRef} data-screenshot-target className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">Round {String(round.round).padStart(2, '0')} · {formatOrNull(rangeDateFormat, round.start)}</p><h2>{round.name}</h2></div><div className="details-actions"><ScreenshotButton targetRef={detailsRef} filename={`${round.name.replaceAll(' ', '-').toLowerCase()}-details`} /><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}</span><span className="session-date">{formatOrNull(fullDateFormat, session.date)}</span><strong className="session-time">{formatOrNull(timeFormat, session.date)}{formatDuration(session.duration) ? <small className="session-duration">{formatDuration(session.duration)}</small> : null}</strong></div>)}</div></section></div>;
 }
