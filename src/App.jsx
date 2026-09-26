@@ -59,6 +59,21 @@ function getNextSession(sessions, now) {
   return sessions.filter((session) => session.date && session.date > now).sort((a, b) => a.date - b.date)[0] ?? null;
 }
 
+function googleCalendarUrl(session, roundName) {
+  if (!session?.date) return null;
+  const end = Number.isFinite(session.duration)
+    ? new Date(session.date.getTime() + session.duration * 60000)
+    : new Date(session.date.getTime() + 60 * 60000);
+  const dateValue = (date) => date.toISOString().replace(/[-:]/g, '').replace(/\.000Z$/, 'Z');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `${roundName} — ${session.name.replaceAll('_', ' ')}`,
+    dates: `${dateValue(session.date)}/${dateValue(end)}`,
+    details: `Motorsport session${formatDuration(session.duration) ? ` · ${formatDuration(session.duration)}` : ''}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 export default function App() {
   const [data, setData] = useState(null);
   const [year, setYear] = useState('');
@@ -246,5 +261,5 @@ function WeekTimeline({ sessions, now, onClick }) {
 
 function RaceDetails({ round, onClose }) {
   const detailsRef = useRef(null);
-  return <div className="modal-backdrop" onClick={onClose}><section ref={detailsRef} data-screenshot-target className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">Round {String(round.round).padStart(2, '0')} · {formatOrNull(rangeDateFormat, round.start)}</p><h2>{round.name}</h2></div><div className="details-actions"><ScreenshotButton targetRef={detailsRef} filename={`${round.name.replaceAll(' ', '-').toLowerCase()}-details`} /><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}</span><span className="session-date">{formatOrNull(fullDateFormat, session.date)}</span><strong className="session-time">{formatOrNull(timeFormat, session.date)}{formatDuration(session.duration) ? <small className="session-duration">{formatDuration(session.duration)}</small> : null}</strong></div>)}</div></section></div>;
+  return <div className="modal-backdrop" onClick={onClose}><section ref={detailsRef} data-screenshot-target className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">Round {String(round.round).padStart(2, '0')} · {formatOrNull(rangeDateFormat, round.start)}</p><h2>{round.name}</h2></div><div className="details-actions"><ScreenshotButton targetRef={detailsRef} filename={`${round.name.replaceAll(' ', '-').toLowerCase()}-details`} /><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => { const calendarUrl = googleCalendarUrl(session, round.name); return <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}{calendarUrl && <a className="calendar-icon" href={calendarUrl} target="_blank" rel="noreferrer" data-html2canvas-ignore="true" aria-label={`Add ${session.name.replaceAll('_', ' ')} to Google Calendar`}>📅</a>}</span><span className="session-date">{formatOrNull(fullDateFormat, session.date)}</span><strong className="session-time">{formatOrNull(timeFormat, session.date)}{formatDuration(session.duration) ? <small className="session-duration">{formatDuration(session.duration)}</small> : null}</strong></div>; })}</div></section></div>;
 }
