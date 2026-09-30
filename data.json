@@ -175,11 +175,11 @@
           "round": 5,
           "name": "United States Grand Prix",
           "details": {
-            "Practice": null,
-            "Qualifying": null,
-            "Opening_Race": null,
-            "Reverse_Grid_Race": null,
-            "Feature_Race": null
+            "Practice": "2026-10-22T17:25:00Z",
+            "Qualifying": "2026-10-22T21:30:00Z",
+            "Opening_Race": "2026-10-23T22:50:00Z",
+            "Reverse_Grid_Race": "2026-10-24T19:45:00Z",
+            "Feature_Race": "2026-10-25T15:40:00Z"
           }
         },
         {
