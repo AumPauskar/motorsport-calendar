@@ -1,7 +1,7 @@
 {
   "2026": {
     "Formula 1": {
-      "round-duration" : [
+      "round-duration": [
         {
           "FP": 60,
           "Qualifying": 60,
@@ -115,7 +115,7 @@
     "Formula 2": {
       "feeder": true,
       "parent": "Formula 1",
-      "round-duration" : [
+      "round-duration": [
         {
           "Practice": 30,
           "Qualifying": 30,
@@ -161,7 +161,7 @@
     "F1 Academy": {
       "feeder": true,
       "parent": "Formula 1",
-      "round-duration" : [
+      "round-duration": [
         {
           "FP": 30,
           "Qualifying": 30,
@@ -195,7 +195,7 @@
       ]
     },
     "MotoGP": {
-      "round-duration" : [
+      "round-duration": [
         {
           "FP1": 45,
           "Practice": 60,
@@ -311,7 +311,7 @@
     "Moto2": {
       "feeder": true,
       "parent": "MotoGP",
-      "round-duration" : [
+      "round-duration": [
         {
           "FP1": 35,
           "Practice": 40,
@@ -411,7 +411,7 @@
     "Moto3": {
       "feeder": true,
       "parent": "MotoGP",
-      "round-duration" : [
+      "round-duration": [
         {
           "FP1": 35,
           "Practice": 40,
@@ -504,6 +504,50 @@
             "Qualifying_Q1": "2026-11-28T11:45:00Z",
             "Qualifying_Q2": "2026-11-28T12:10:00Z",
             "Race": "2026-11-29T10:00:00Z"
+          }
+        }
+      ]
+    },
+    "WSBK": {
+      "round-duration": [
+        {
+          "FP1": 45,
+          "FP2": 45,
+          "FP3": 20,
+          "Superpole": 15,
+          "Race_1": 35,
+          "Warm_Up": 10,
+          "Superpole_Race": 20,
+          "Race_2": 35
+        }
+      ],
+      "rounds": [
+        {
+          "round": 11,
+          "name": "Tissot Estoril Round",
+          "details": {
+            "Practice_1": "2026-10-09T09:20:00Z",
+            "Practice_2": "2026-10-09T14:00:00Z",
+            "Practice_3": "2026-10-10T08:40:00Z",
+            "Superpole": "2026-10-10T10:15:00Z",
+            "Race_1": "2026-10-10T14:30:00Z",
+            "Warm_Up": "2026-10-11T08:15:00Z",
+            "Superpole_Race": "2026-10-11T10:10:00Z",
+            "Race_2": "2026-10-11T14:30:00Z"
+          }
+        },
+        {
+          "round": 12,
+          "name": "Pirelli Spanish Round",
+          "details": {
+            "Practice_1": "2026-10-16T07:35:00Z",
+            "Practice_2": "2026-10-16T12:00:00Z",
+            "Practice_3": "2026-10-17T06:35:00Z",
+            "Superpole": "2026-10-17T08:15:00Z",
+            "Race_1": "2026-10-17T12:30:00Z",
+            "Warm_Up": "2026-10-18T06:35:00Z",
+            "Superpole_Race": "2026-10-18T08:10:00Z",
+            "Race_2": "2026-10-18T12:30:00Z"
           }
         }
       ]
@@ -664,12 +708,12 @@
       "parent": "MotoGP",
       "rounds": []
     },
-    "Harley-Davidson Baggers" : {
+    "Harley-Davidson Baggers": {
       "feeder": true,
       "parent": "MotoGP",
       "rounds": []
     },
-    "Red Bull Rookies" : {
+    "Red Bull Rookies": {
       "feeder": true,
       "parent": "MotoGP",
       "rounds": []
