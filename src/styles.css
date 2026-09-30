@@ -37,3 +37,37 @@
 .live-status,.live-badge{font:10px "DM Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#fff;background:#d93636;border-radius:4px;padding:6px 8px;white-space:nowrap}.tree-live .tree-card{border-color:#d93636;box-shadow:0 0 0 2px rgba(217,54,54,.16),var(--shadow)}.tree-live .tree-node{background:#d93636;color:#fff;box-shadow:0 0 0 2px #8b8980,0 0 0 7px rgba(217,54,54,.2)}.tree-live .live-badge{align-self:flex-start;margin-top:2px;padding:4px 6px;font-size:9px}
 .scroll-top-button{position:fixed;right:28px;bottom:28px;z-index:8;display:grid;place-items:center;width:46px;height:46px;border:1px solid var(--line);border-radius:50%;background:var(--yellow);color:#171717;box-shadow:var(--shadow);font-size:23px;line-height:1;transition:transform .18s,background .18s}.scroll-top-button:hover{transform:translateY(-3px);background:#e5b900}.scroll-top-button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 @media(max-width:560px){.scroll-top-button{right:16px;bottom:16px}}
+
+.weekend-championships-panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 22px 20px;margin-bottom:34px;box-shadow:var(--shadow);transition:border-color .2s,box-shadow .2s}
+.all-championships-section{padding-bottom:14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.championship-disclosure{display:grid;place-items:center;width:24px;height:24px;flex-shrink:0;border:1px solid var(--line);border-radius:5px;color:var(--muted);transition:background .16s,border-color .16s,color .16s}
+.championship-disclosure:hover:not(:disabled){background:var(--yellow-soft);border-color:var(--yellow);color:var(--ink)}
+.championship-disclosure span{display:block;transform:rotate(-90deg);transition:transform .18s ease}
+.championship-disclosure.expanded span{transform:rotate(0)}
+.championship-disclosure:disabled{opacity:.45;cursor:not-allowed}
+.all-championships-label{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:12px;font-weight:700;color:var(--ink)}
+.checkbox-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.checkbox-box{width:12px;height:12px;border-radius:3px;border:1px solid var(--line);background:var(--paper);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .18s cubic-bezier(.4,0,.2,1);box-shadow:inset 0 1px 2px rgba(0,0,0,.04)}
+.all-championships-label:hover .checkbox-box,.championship-checkbox-card:hover .checkbox-box{border-color:var(--yellow)}
+.checkbox-input:checked + .checkbox-box{background:var(--yellow);border-color:var(--yellow);color:#171717;box-shadow:0 2px 6px rgba(246,201,14,.35)}
+.checkbox-input:focus-visible + .checkbox-box{outline:2px solid var(--yellow);outline-offset:2px}
+.checkbox-input:disabled + .checkbox-box{opacity:.4;cursor:not-allowed}
+.all-championships-label input:disabled{cursor:not-allowed}
+.check-icon{width:7px;height:6px;stroke:#171717;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;opacity:0;transform:scale(.6);transition:transform .18s cubic-bezier(.4,0,.2,1),opacity .18s}
+.checkbox-input:checked + .checkbox-box .check-icon{opacity:1;transform:scale(1)}
+.all-label-text{letter-spacing:-.02em}
+.all-championships-section .count-pill{background:var(--yellow-soft);color:var(--ink);font-weight:700;font-size:11px;padding:3px 9px;border-radius:12px}
+.weekend-championships-sublist{padding-top:16px}
+.filter-subheading{margin:0 0 14px;color:var(--muted);font:10px "DM Mono",monospace;text-transform:uppercase;letter-spacing:.12em;opacity:.85}
+.weekend-checkboxes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:7px}
+.championship-checkbox-card{display:flex;align-items:center;gap:7px;padding:7px 9px;background:var(--paper);border:1px solid var(--line);border-radius:6px;cursor:pointer;user-select:none;transition:transform .18s,border-color .18s,background .18s,box-shadow .18s;min-width:0}
+.championship-checkbox-card:hover{transform:translateY(-2px);border-color:var(--yellow);background:var(--yellow-soft);box-shadow:0 6px 14px rgba(28,26,18,.05)}
+.championship-checkbox-card.is-checked{border-color:var(--yellow);background:var(--yellow-soft)}
+.series-logo-pill{width:20px;height:20px;border-radius:4px;background:var(--card);border:1px solid var(--line);color:var(--ink);display:grid;place-items:center;font:9px "DM Mono",monospace;font-weight:700;flex-shrink:0;transition:background .18s,color .18s,border-color .18s}
+.championship-checkbox-card.is-checked .series-logo-pill{background:var(--ink);color:var(--yellow);border-color:var(--ink)}
+[data-theme=dark] .championship-checkbox-card.is-checked .series-logo-pill{background:var(--yellow);color:#171717;border-color:var(--yellow)}
+.champ-details{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.champ-name{font-size:11px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.02em}
+.champ-count{font:9px "DM Mono",monospace;color:var(--muted);white-space:nowrap}
+.empty-championships-state,.no-championships-weekend{padding:12px 0 4px;color:var(--muted);font-size:12px;font-style:italic}
+@media(max-width:700px){.weekend-championships-panel{padding:12px;margin-bottom:24px}.weekend-championships-sublist{padding-top:12px}.weekend-checkboxes-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.championship-checkbox-card{gap:5px;padding:6px;min-height:42px}.series-logo-pill{width:18px;height:18px;font-size:8px}.champ-name{font-size:10px}.champ-count{font-size:8px}}
