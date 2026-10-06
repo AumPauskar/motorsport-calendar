@@ -74,11 +74,17 @@
 .card-topline-meta{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
 .card-category-pill{background:var(--yellow-soft);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:2px 7px;font:9px "DM Mono",monospace;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
 .category-filter-bar{display:flex;align-items:center;gap:8px;margin:-35px 0 35px;flex-wrap:wrap}
-.category-filter-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--muted);font:11px "DM Mono",monospace;font-weight:600;cursor:pointer;transition:all .18s;box-shadow:var(--shadow)}
+.week-filter-bar{margin:0 0 32px}
+.category-filter-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--muted);font:11px "DM Mono",monospace;font-weight:600;cursor:pointer;transition:all .18s;box-shadow:var(--shadow);user-select:none}
 .category-filter-pill:hover{border-color:var(--yellow);color:var(--ink);background:var(--yellow-soft)}
 .category-filter-pill.active{background:var(--yellow);border-color:var(--yellow);color:#171717;font-weight:700}
-.category-filter-pill .count-pill{background:rgba(23,23,23,.1);color:inherit;font-size:9px;padding:2px 6px}
+.category-filter-pill .count-pill{background:rgba(23,23,23,.1);color:inherit;font-size:9px;padding:2px 6px;border-radius:10px}
 .category-filter-pill.active .count-pill{background:#171717;color:var(--yellow)}
+.category-filter-pill .pill-logo{width:16px;height:16px;border-radius:3px;background:rgba(23,23,23,.08);color:inherit;display:grid;place-items:center;font-size:8px;font-weight:700}
+.category-filter-pill.active .pill-logo{background:#171717;color:var(--yellow)}
 .category-pill-accent{color:var(--yellow);font-weight:700}
 [data-theme=dark] .card-category-pill{background:var(--yellow-soft);border-color:rgba(246,201,14,.3);color:var(--ink)}
-[data-theme=dark] .category-filter-pill.active .count-pill{background:#fff;color:#171717}
+[data-theme=dark] .category-filter-pill.active .count-pill{background:#171717;color:var(--yellow)}
+[data-theme=dark] .category-filter-pill .pill-logo{background:rgba(255,255,255,.12);color:inherit}
+[data-theme=dark] .category-filter-pill.active .pill-logo{background:#171717;color:var(--yellow)}
+@media(max-width:700px){.category-filter-bar{gap:6px;margin:-25px 0 25px}.category-filter-bar.week-filter-bar{margin:0 0 25px}.category-filter-pill{padding:5px 10px;font-size:10px}}
