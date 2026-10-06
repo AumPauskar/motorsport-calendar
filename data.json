@@ -674,6 +674,31 @@
           }
         }
       ]
+    },
+    "More Racing":{
+      "rounds": [
+        {
+          "round": 10,
+          "category": "GT World Challenge",
+          "name": "GT World Challenge Europe - Portimão",
+          "details": {
+            "FP1": "2026-10-16T07:45:00Z",
+            "Qualifying": "2026-10-16T16:55:00Z",
+            "Race": "2026-10-17T16:00:00Z"
+          }
+        },
+        {
+          "round": 11,
+          "category": "Supercars",
+          "name": "Repco Bathurst 1000",
+          "details": {
+            "FP1": "2026-10-08T02:30:00Z",
+            "Qualifying": "2026-10-09T05:10:00Z",
+            "Top_Ten_Shootout": "2026-10-10T06:05:00Z",
+            "Race": "2026-10-11T00:30:00Z"
+          }
+        }
+      ]
     }
   },
   "2027": {

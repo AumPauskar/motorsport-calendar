@@ -10,6 +10,21 @@ const rangeDateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day
 const localTimezone = () => timezone.replaceAll('_', ' ');
 const formatOrNull = (formatter, value) => value ? formatter.format(value) : 'null';
 
+function getRoundStartTime(round) {
+  if (round.start instanceof Date && !Number.isNaN(round.start.getTime())) {
+    return round.start.getTime();
+  }
+  const mainRace = round.sessions?.find((s) => s.name?.toLowerCase() === 'race');
+  if (mainRace?.date instanceof Date && !Number.isNaN(mainRace.date.getTime())) {
+    return mainRace.date.getTime();
+  }
+  const firstDated = round.sessions?.find((s) => s.date instanceof Date && !Number.isNaN(s.date.getTime()));
+  if (firstDated?.date instanceof Date && !Number.isNaN(firstDated.date.getTime())) {
+    return firstDated.date.getTime();
+  }
+  return Infinity;
+}
+
 function getRounds(data, year, series) {
   const championship = data?.[year]?.[series] ?? {};
   return (championship.rounds ?? []).map((round) => {
@@ -21,7 +36,14 @@ function getRounds(data, year, series) {
     }));
     const datedSessions = sessions.filter((session) => session.date);
     return { ...round, sessions, start: datedSessions[0]?.date ?? null, finish: datedSessions.at(-1)?.date ?? null };
-  }).sort((a, b) => Number(a.round) - Number(b.round));
+  }).sort((a, b) => {
+    if (series === 'More Racing' || a.category || b.category) {
+      const timeA = getRoundStartTime(a);
+      const timeB = getRoundStartTime(b);
+      if (timeA !== timeB) return timeA - timeB;
+    }
+    return Number(a.round) - Number(b.round);
+  });
 }
 
 function isRoundElapsed(round, now) {
@@ -116,8 +138,22 @@ export default function App() {
   const championships = useMemo(() => Object.keys(data?.[year] ?? {}), [data, year]);
   const championshipGroups = useMemo(() => getChampionshipGroups(data?.[year] ?? {}), [data, year]);
   const rounds = useMemo(() => getRounds(data, year, series), [data, year, series]);
-  const activeRounds = useMemo(() => rounds.filter((round) => !isRoundElapsed(round, now)), [rounds, now]);
-  const elapsedRounds = useMemo(() => rounds.filter((round) => isRoundElapsed(round, now)), [rounds, now]);
+  const [moreRacingCategory, setMoreRacingCategory] = useState('all');
+  useEffect(() => { setMoreRacingCategory('all'); }, [series, year]);
+  const moreRacingCategories = useMemo(() => {
+    if (series !== 'More Racing') return [];
+    const set = new Set();
+    rounds.forEach((r) => { if (r.category) set.add(r.category); });
+    return Array.from(set);
+  }, [series, rounds]);
+
+  const displayedRounds = useMemo(() => {
+    if (series !== 'More Racing' || moreRacingCategory === 'all') return rounds;
+    return rounds.filter((r) => r.category === moreRacingCategory);
+  }, [rounds, series, moreRacingCategory]);
+
+  const activeRounds = useMemo(() => displayedRounds.filter((round) => !isRoundElapsed(round, now)), [displayedRounds, now]);
+  const elapsedRounds = useMemo(() => displayedRounds.filter((round) => isRoundElapsed(round, now)), [displayedRounds, now]);
   const seriesSessions = useMemo(() => rounds.flatMap((round) => round.sessions.map((session) => ({ ...session, round }))), [rounds]);
   const liveSeriesSessions = useMemo(() => getLiveSessions(seriesSessions, now), [seriesSessions, now]);
   const nextSession = useMemo(() => getNextSession(seriesSessions, now), [seriesSessions, now]);
@@ -181,13 +217,15 @@ export default function App() {
 
   function changeYear(nextYear) { setYear(nextYear); setSeries(Object.keys(data?.[nextYear] ?? {})[0] ?? ''); setSelectedRound(null); }
   function goToRound(round) {
-    if (round.series && round.series !== series) {
-      setSeries(round.series);
-      window.setTimeout(() => goToRound({ ...round, series: undefined }), 80);
+    const targetSeries = round.parentSeries || round.series;
+    if (targetSeries && targetSeries !== series) {
+      setSeries(targetSeries);
+      window.setTimeout(() => goToRound({ ...round, series: undefined, parentSeries: undefined }), 80);
       return;
     }
-    document.getElementById(`race-round-${round.round}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const card = document.getElementById(`race-round-${round.round}`);
+    const cardId = `race-round-${round.category ? `${round.category.toLowerCase().replace(/\s+/g, '-')}-` : ''}${round.round}`;
+    const card = document.getElementById(cardId) || document.getElementById(`race-round-${round.round}`);
+    card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     card?.classList.add('is-target');
     window.setTimeout(() => card?.classList.remove('is-target'), 1800);
   }
@@ -204,7 +242,7 @@ export default function App() {
       </div><div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
     </aside>
     <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">{page === 'week' ? <strong>This week</strong> : <><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></>}</div><div className="top-actions"><button className={`theme-toggle ${themeMode}`} onClick={() => setThemeMode((mode) => mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light')} aria-label={`Theme: ${themeMode}. Click to switch.`}><span>☼</span><span className={`theme-track mode-${themeMode}`}><i /></span><span className="auto-label">A</span><span>☾</span></button></div></header>
-      <div className="content-wrap">{page === 'calendar' ? <><NextEventBanner sessions={liveSeriesSessions.length ? liveSeriesSessions : nextSession ? [nextSession] : []} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{rounds.length} race weekends · Times shown in {localTimezone()}</p></div></section><RaceWeekendSection title="Race weekends" rounds={activeRounds} onSelect={setSelectedRound} emptyMessage="No upcoming race weekends" />{elapsedRounds.length > 0 && <RaceWeekendSection title="Elapsed race weekends" rounds={elapsedRounds} onSelect={setSelectedRound} elapsed />}</> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline captureRef={weekCaptureRef} sessions={filteredWeekSessions} now={now} weekOffset={weekOffset} weekendChampionships={weekendChampionships} isAllSelected={isAllSelected} activeSelectedSet={activeSelectedSet} onToggleAll={handleToggleAll} onToggleSeries={handleToggleSeries} onClick={goToRound} /></>}
+      <div className="content-wrap">{page === 'calendar' ? <><NextEventBanner sessions={liveSeriesSessions.length ? liveSeriesSessions : nextSession ? [nextSession] : []} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{series === 'More Racing' && moreRacingCategories.length > 0 ? `${rounds.length} races across ${moreRacingCategories.length} categories · Times shown in ${localTimezone()}` : `${rounds.length} race weekends · Times shown in ${localTimezone()}`}</p></div></section>{series === 'More Racing' && moreRacingCategories.length > 0 && <div className="category-filter-bar"><button className={`category-filter-pill ${moreRacingCategory === 'all' ? 'active' : ''}`} onClick={() => setMoreRacingCategory('all')}>All categories <span className="count-pill">{rounds.length}</span></button>{moreRacingCategories.map((cat) => { const count = rounds.filter((r) => r.category === cat).length; return <button key={cat} className={`category-filter-pill ${moreRacingCategory === cat ? 'active' : ''}`} onClick={() => setMoreRacingCategory(cat)}>{cat} <span className="count-pill">{count}</span></button>; })}</div>}<RaceWeekendSection title="Race weekends" rounds={activeRounds} onSelect={setSelectedRound} emptyMessage="No upcoming race weekends" />{elapsedRounds.length > 0 && <RaceWeekendSection title="Elapsed race weekends" rounds={elapsedRounds} onSelect={setSelectedRound} elapsed />}</> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline captureRef={weekCaptureRef} sessions={filteredWeekSessions} now={now} weekOffset={weekOffset} weekendChampionships={weekendChampionships} isAllSelected={isAllSelected} activeSelectedSet={activeSelectedSet} onToggleAll={handleToggleAll} onToggleSeries={handleToggleSeries} onClick={goToRound} /></>}
         </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} now={now} onClose={() => setSelectedRound(null)} />}{showScrollTop && <button className="scroll-top-button" type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Scroll to top" title="Scroll to top">↑</button>}
   </div>;
 }
@@ -220,21 +258,22 @@ function NextEventBanner({ sessions, now, onClick }) {
     const hours = Math.floor((totalSeconds % 86400) / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    return <button className={`next-event-item ${live ? 'is-live' : ''}`} onClick={() => onClick(session.round)} key={`${session.series ?? ''}-${session.iso}-${session.name}`}><span className="next-event-kicker"><i />{live ? 'Live now' : 'Next session'}</span><span className="next-event-copy"><strong>{session.round.name}</strong><small>{session.name.replaceAll('_', ' ')} · {live ? `ends ${timeFormat.format(end)}` : `${fullDateFormat.format(session.date)} at ${timeFormat.format(session.date)}`}{formatDuration(session.duration) ? ` · ${formatDuration(session.duration)}` : ''}</small></span>{live ? <span className="live-status">LIVE</span> : <span className="countdown" aria-label={`Starts in ${days} days, ${hours} hours, ${minutes} minutes, ${seconds} seconds`}><b>{String(days).padStart(2, '0')}</b><em>d</em><b>{String(hours).padStart(2, '0')}</b><em>h</em><b>{String(minutes).padStart(2, '0')}</b><em>m</em><b>{String(seconds).padStart(2, '0')}</b><em>s</em></span>}<span className="next-event-arrow">↗</span></button>;
+    return <button className={`next-event-item ${live ? 'is-live' : ''}`} onClick={() => onClick(session.round)} key={`${session.series ?? ''}-${session.iso}-${session.name}`}><span className="next-event-kicker"><i />{live ? 'Live now' : 'Next session'}</span><span className="next-event-copy"><strong>{session.round.name}</strong><small>{session.round?.category ? `${session.round.category} · ` : ''}{session.name.replaceAll('_', ' ')} · {live ? `ends ${timeFormat.format(end)}` : `${fullDateFormat.format(session.date)} at ${timeFormat.format(session.date)}`}{formatDuration(session.duration) ? ` · ${formatDuration(session.duration)}` : ''}</small></span>{live ? <span className="live-status">LIVE</span> : <span className="countdown" aria-label={`Starts in ${days} days, ${hours} hours, ${minutes} minutes, ${seconds} seconds`}><b>{String(days).padStart(2, '0')}</b><em>d</em><b>{String(hours).padStart(2, '0')}</b><em>h</em><b>{String(minutes).padStart(2, '0')}</b><em>m</em><b>{String(seconds).padStart(2, '0')}</b><em>s</em></span>}<span className="next-event-arrow">↗</span></button>;
   })}</div>;
 }
 
 function RaceCard({ round, onClick }) {
   const mainRace = round.sessions.find((session) => session.name.toLowerCase() === 'race') ?? round.sessions.at(-1);
-  return <button id={`race-round-${round.round}`} className="race-card" onClick={onClick}><div className="card-topline"><span>Round {String(round.round).padStart(2, '0')}</span><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{formatOrNull(rangeDateFormat, round.start)}</span><span className="range-line" /><span>{formatOrNull(rangeDateFormat, round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race{formatDuration(mainRace?.duration) ? ` · ${formatDuration(mainRace.duration)}` : ''}</small><strong>{formatOrNull(fullDateFormat, mainRace?.date)} · {formatOrNull(timeFormat, mainRace?.date)}</strong></span></div></button>;
+  const cardId = `race-round-${round.category ? `${round.category.toLowerCase().replace(/\s+/g, '-')}-` : ''}${round.round}`;
+  return <button id={cardId} className={`race-card ${round.category ? 'has-category' : ''}`} onClick={onClick}><div className="card-topline"><div className="card-topline-meta">{round.category && <span className="card-category-pill">{round.category}</span>}<span>Round {String(round.round).padStart(2, '0')}</span></div><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{formatOrNull(rangeDateFormat, round.start)}</span><span className="range-line" /><span>{formatOrNull(rangeDateFormat, round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race{formatDuration(mainRace?.duration) ? ` · ${formatDuration(mainRace.duration)}` : ''}</small><strong>{formatOrNull(fullDateFormat, mainRace?.date)} · {formatOrNull(timeFormat, mainRace?.date)}</strong></span></div></button>;
 }
 
 function RaceWeekendSection({ title, rounds, onSelect, elapsed = false, emptyMessage = 'No races scheduled yet' }) {
-  return <section className={`race-section ${elapsed ? 'elapsed-race-section' : ''}`}><div className="section-heading large"><div><p className="eyebrow accent">{elapsed ? 'History' : 'The season'}</p><h2>{title}</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.round} round={round} onClick={() => onSelect(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>{emptyMessage}</h3><p>{elapsed ? 'Completed race weekends will appear here.' : 'Add rounds to data.json to see them here.'}</p></div>}</section>;
+  return <section className={`race-section ${elapsed ? 'elapsed-race-section' : ''}`}><div className="section-heading large"><div><p className="eyebrow accent">{elapsed ? 'History' : 'The season'}</p><h2>{title}</h2></div><span className="race-count">{rounds.length} rounds</span></div>{rounds.length ? <div className="race-grid">{rounds.map((round) => <RaceCard key={round.category ? `${round.category}-${round.round}` : round.round} round={round} onClick={() => onSelect(round)} />)}</div> : <div className="empty-state"><span>◎</span><h3>{emptyMessage}</h3><p>{elapsed ? 'Completed race weekends will appear here.' : 'Add rounds to data.json to see them here.'}</p></div>}</section>;
 }
 
 function getAllWeekSessions(data, year, currentDate, weekOffset = 0) {
-  const rounds = Object.entries(data?.[year] ?? {}).flatMap(([seriesName, championship]) => (championship.rounds ?? []).map((round) => ({ ...round, series: seriesName, championship })));
+  const rounds = Object.entries(data?.[year] ?? {}).flatMap(([seriesName, championship]) => (championship.rounds ?? []).map((round) => ({ ...round, series: seriesName === 'More Racing' && round.category ? round.category : seriesName, parentSeries: seriesName, championship })));
   const start = new Date(currentDate); const day = (start.getDay() + 6) % 7;
   start.setDate(start.getDate() - day + (weekOffset * 7)); start.setHours(0, 0, 0, 0);
   const end = new Date(start); end.setDate(end.getDate() + 8);
@@ -347,5 +386,5 @@ function WeekTimeline({ sessions, now, onClick }) {
 
 function RaceDetails({ round, now, onClose }) {
   const detailsRef = useRef(null);
-  return <div className="modal-backdrop" onClick={onClose}><section ref={detailsRef} data-screenshot-target className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">Round {String(round.round).padStart(2, '0')} · {formatOrNull(rangeDateFormat, round.start)}</p><h2>{round.name}</h2></div><div className="details-actions"><ScreenshotButton targetRef={detailsRef} filename={`${round.name.replaceAll(' ', '-').toLowerCase()}-details`} /><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => { const calendarUrl = isSessionElapsed(session, now) ? null : googleCalendarUrl(session, round.name); return <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}{calendarUrl && <a className="calendar-icon" href={calendarUrl} target="_blank" rel="noreferrer" data-html2canvas-ignore="true" aria-label={`Add ${session.name.replaceAll('_', ' ')} to Google Calendar`}>📅</a>}</span><span className="session-date">{formatOrNull(fullDateFormat, session.date)}</span><strong className="session-time">{formatOrNull(timeFormat, session.date)}{formatDuration(session.duration) ? <small className="session-duration">{formatDuration(session.duration)}</small> : null}</strong></div>; })}</div></section></div>;
+  return <div className="modal-backdrop" onClick={onClose}><section ref={detailsRef} data-screenshot-target className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">{round.category ? <><span className="category-pill-accent">{round.category}</span> · </> : null}Round {String(round.round).padStart(2, '0')} · {formatOrNull(rangeDateFormat, round.start)}</p><h2>{round.name}</h2></div><div className="details-actions"><ScreenshotButton targetRef={detailsRef} filename={`${round.name.replaceAll(' ', '-').toLowerCase()}-details`} /><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => { const calendarUrl = isSessionElapsed(session, now) ? null : googleCalendarUrl(session, round.name); return <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}{calendarUrl && <a className="calendar-icon" href={calendarUrl} target="_blank" rel="noreferrer" data-html2canvas-ignore="true" aria-label={`Add ${session.name.replaceAll('_', ' ')} to Google Calendar`}>📅</a>}</span><span className="session-date">{formatOrNull(fullDateFormat, session.date)}</span><strong className="session-time">{formatOrNull(timeFormat, session.date)}{formatDuration(session.duration) ? <small className="session-duration">{formatDuration(session.duration)}</small> : null}</strong></div>; })}</div></section></div>;
 }
