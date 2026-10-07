@@ -692,11 +692,31 @@
           "category": "Supercars",
           "name": "Repco Bathurst 1000",
           "details": {
-            "FP1": "2026-10-08T02:30:00Z",
-            "Qualifying": "2026-10-09T05:10:00Z",
+            "Practice_1": "2026-10-08T02:30:00Z",
+            "Practice_2": "2026-10-08T04:45:00Z",
+            "Practice_3": "2026-10-09T00:05:00Z",
+            "Practice_4": "2026-10-09T03:15:00Z",
+            "Qualifying": "2026-10-09T05:15:00Z",
+            "Practice_5": "2026-10-10T00:05:00Z",
+            "Practice_6": "2026-10-10T03:10:00Z",
             "Top_Ten_Shootout": "2026-10-10T06:05:00Z",
+            "Warm_Up": "2026-10-11T22:30:00Z",
             "Race": "2026-10-11T00:30:00Z"
-          }
+          },
+          "round-duration": [
+            {
+              "Practice_1": 60,
+              "Practice_2": 60,
+              "Practice_3": 60,
+              "Practice_4": 60,
+              "Qualifying": 40,
+              "Practice_5": 60,
+              "Practice_6": 60,
+              "Top_Ten_Shootout": 45,
+              "Warm_Up": 20,
+              "Race": 360
+            }
+          ]
         }
       ]
     }
