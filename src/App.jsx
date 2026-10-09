@@ -1,15 +1,22 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import raceData from '../data.json';
 import './styles.css';
+import SettingsPageView from './SettingsPage.jsx';
 
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time';
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
-const fullDateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-const rangeDateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const localTimezone = () => timezone.replaceAll('_', ' ');
 const formatOrNull = (formatter, value) => value ? formatter.format(value) : 'null';
-
+const DisplaySettingsContext = createContext(null);
+const useDisplaySettings = () => useContext(DisplaySettingsContext);
+const defaultSettings = { landingPage: 'calendar', dateTimeFormat: 'auto', dateStyle: 'dmy', timeStyle: '12', timezoneMode: 'auto', manualTimezone: timezone };
+function loadSettings() {
+  try {
+    return { ...defaultSettings, ...JSON.parse(localStorage.getItem('beetstop-settings') || '{}') };
+  } catch {
+    return defaultSettings;
+  }
+}
 function getRoundStartTime(round) {
   if (round.start instanceof Date && !Number.isNaN(round.start.getTime())) {
     return round.start.getTime();
@@ -24,7 +31,6 @@ function getRoundStartTime(round) {
   }
   return Infinity;
 }
-
 function getRounds(data, year, series) {
   const championship = data?.[year]?.[series] ?? {};
   return (championship.rounds ?? []).map((round) => {
@@ -78,7 +84,7 @@ function getSessionDuration(round, name, championship) {
 
 function formatDuration(minutes) {
   if (!Number.isFinite(minutes)) return null;
-  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60}h`;
+  if (minutes >= 60 && minutes % 66 === 0) return `${minutes / 60}h`;
   return `${minutes} min`;
 }
 
@@ -116,6 +122,24 @@ export default function App() {
   const [year, setYear] = useState('');
   const [series, setSeries] = useState('');
   const [selectedRound, setSelectedRound] = useState(null);
+  const [settings, setSettings] = useState(loadSettings);
+  const displaySettings = useMemo(() => {
+    const timeZone = settings.timezoneMode === 'manual' ? settings.manualTimezone.trim() : timezone;
+    let validTimeZone = timezone;
+    try { new Intl.DateTimeFormat(undefined, { timeZone }).format(); validTimeZone = timeZone; } catch { /* Keep the browser timezone until the entered zone is valid. */ }
+    const dateLocale = settings.dateStyle === 'mdy' ? 'en-US' : settings.dateStyle === 'ymd' ? 'sv-SE' : 'en-GB';
+    const manual = settings.dateTimeFormat === 'manual';
+    const dateOptions = manual ? { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' } : { weekday: 'short', month: 'short', day: 'numeric' };
+    const rangeOptions = manual ? { day: '2-digit', month: '2-digit', year: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' };
+    return {
+      timezone: validTimeZone,
+      timezoneLabel: validTimeZone.replaceAll('_', ' '),
+      timeFormat: new Intl.DateTimeFormat(manual ? dateLocale : undefined, { hour: 'numeric', minute: '2-digit', ...(manual ? { hourCycle: settings.timeStyle === '24' ? 'h23' : 'h12' } : {}), timeZone: validTimeZone }),
+      fullDateFormat: new Intl.DateTimeFormat(manual ? dateLocale : undefined, { ...dateOptions, timeZone: validTimeZone }),
+      rangeDateFormat: new Intl.DateTimeFormat(manual ? dateLocale : undefined, { ...rangeOptions, timeZone: validTimeZone }),
+      weekdayFormat: new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: validTimeZone }),
+    };
+  }, [settings]);
   const [themeMode, setThemeMode] = useState(() => localStorage.getItem('beetstop-theme') || 'auto');
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -126,7 +150,8 @@ export default function App() {
   const [expandedSeries, setExpandedSeries] = useState('');
   const weekCaptureRef = useRef(null);
 
-  useEffect(() => { const years = Object.keys(raceData).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; setData(raceData); setYear(initialYear); setSeries(Object.keys(raceData[initialYear] ?? {})[0] ?? ''); }, []);
+  useEffect(() => { const years = Object.keys(raceData).sort((a, b) => b - a); const initialYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : years[0]; const seriesNames = Object.keys(raceData[initialYear] ?? {}); setData(raceData); setYear(initialYear); setSeries(seriesNames.includes(settings.landingPage) ? settings.landingPage : seriesNames[0] ?? ''); setPage(settings.landingPage === 'week' ? 'week' : 'calendar'); }, []);
+  useEffect(() => { localStorage.setItem('beetstop-settings', JSON.stringify(settings)); }, [settings]);
   const dark = themeMode === 'dark' || (themeMode === 'auto' && systemDark);
   useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('beetstop-theme', themeMode); }, [dark, themeMode]);
   useEffect(() => { const media = window.matchMedia?.('(prefers-color-scheme: dark)'); if (!media) return undefined; const update = (event) => setSystemDark(event.matches); media.addEventListener?.('change', update); return () => media.removeEventListener?.('change', update); }, []);
@@ -256,38 +281,35 @@ export default function App() {
   };
 
   function changeYear(nextYear) { setYear(nextYear); setSeries(Object.keys(data?.[nextYear] ?? {})[0] ?? ''); setSelectedRound(null); }
+  function selectLandingPage(landingPage) {
+    setSettings((current) => ({ ...current, landingPage }));
+  }
   function goToRound(round) {
-    const targetSeries = round.parentSeries || round.series;
-    if (targetSeries && targetSeries !== series) {
-      setSeries(targetSeries);
-      window.setTimeout(() => goToRound({ ...round, series: undefined, parentSeries: undefined }), 80);
-      return;
-    }
-    const cardId = `race-round-${round.category ? `${round.category.toLowerCase().replace(/\s+/g, '-')}-` : ''}${round.round}`;
-    const card = document.getElementById(cardId) || document.getElementById(`race-round-${round.round}`);
-    card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    card?.classList.add('is-target');
-    window.setTimeout(() => card?.classList.remove('is-target'), 1800);
+    setSelectedRound(round);
   }
   if (!data) return <div className="loading-screen">Loading race data<span>•</span></div>;
 
-  return <div className="app-shell">
+  return <DisplaySettingsContext.Provider value={displaySettings}><div className="app-shell">
     <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
       <div className="brand-row"><a className="brand" href="/"><span className="brand-mark">B</span><span>🅱️eetstop</span></a><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu">×</button></div>
       <div className="sidebar-scroll">
         <div className="sidebar-section"><p className="eyebrow">Season</p><label className="select-wrap"><span className="sr-only">Select season</span><select value={year} onChange={(event) => changeYear(event.target.value)}>{years.map((item) => <option value={item} key={item}>{item} season</option>)}</select><span className="select-chevron">⌄</span></label></div>
         <div className="sidebar-section"><button className={`series-item week-sidebar-item ${page === 'week' ? 'active' : ''}`} onClick={() => { setPage('week'); setWeekOffset(0); setSidebarOpen(false); }}><span className="series-logo">↗</span><span>This week</span></button></div>
         <div className="sidebar-section"><div className="section-heading"><p className="eyebrow">Championships</p><span className="count-pill">{championships.length}</span></div><ChampionshipList groups={championshipGroups} page={page} series={series} expandedSeries={expandedSeries} setExpandedSeries={setExpandedSeries} onSelect={(item) => { setSeries(item); setPage('calendar'); setSelectedRound(null); setSidebarOpen(false); }} /></div>
-        <div className="sidebar-note"><span className="note-icon">◒</span><div><strong>Your local time</strong><p>{localTimezone()}</p></div></div>
-      </div><div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
+        <div className="sidebar-section sidebar-settings-section"><button className={`series-item settings-sidebar-item ${page === 'settings' ? 'active' : ''}`} onClick={() => { setPage('settings'); setSidebarOpen(false); }}><span className="series-logo">⚙</span><span>Settings</span></button></div>
+        <div className="sidebar-note"><span className="note-icon">◒</span><div><strong>Displayed timezone</strong><p>{displaySettings.timezoneLabel}</p></div></div>
+      </div>
+      <div className="sidebar-footer"><span>Race calendar</span><span className="live-dot" /></div>
     </aside>
-    <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">{page === 'week' ? <strong>This week</strong> : <><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></>}</div><div className="top-actions"><button className={`theme-toggle ${themeMode}`} onClick={() => setThemeMode((mode) => mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light')} aria-label={`Theme: ${themeMode}. Click to switch.`}><span>☼</span><span className={`theme-track mode-${themeMode}`}><i /></span><span className="auto-label">A</span><span>☾</span></button></div></header>
-      <div className="content-wrap">{page === 'calendar' ? <><NextEventBanner sessions={liveSeriesSessions.length ? liveSeriesSessions : nextSession ? [nextSession] : []} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{series === 'More Racing' && moreRacingCategories.length > 0 ? `${rounds.length} races across ${moreRacingCategories.length} categories · Times shown in ${localTimezone()}` : `${rounds.length} race weekends · Times shown in ${localTimezone()}`}</p></div></section>{series === 'More Racing' && moreRacingCategories.length > 0 && <div className="category-filter-bar"><button className={`category-filter-pill ${isAllMoreRacingSelected ? 'active' : ''}`} onClick={handleToggleMoreRacingAll}>All categories <span className="count-pill">{rounds.length}</span></button>{moreRacingCategories.map((cat) => { const isSelected = !isAllMoreRacingSelected && activeMoreRacingSet.has(cat); const count = rounds.filter((r) => r.category === cat).length; return <button key={cat} className={`category-filter-pill ${isSelected ? 'active' : ''}`} onClick={() => handleToggleMoreRacingCategory(cat)}>{cat} <span className="count-pill">{count}</span></button>; })}</div>}<RaceWeekendSection title="Race weekends" rounds={activeRounds} onSelect={setSelectedRound} emptyMessage="No upcoming race weekends" />{elapsedRounds.length > 0 && <RaceWeekendSection title="Elapsed race weekends" rounds={elapsedRounds} onSelect={setSelectedRound} elapsed />}</> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline captureRef={weekCaptureRef} sessions={filteredWeekSessions} totalWeekSessions={weekSessions.length} now={now} weekOffset={weekOffset} weekendChampionships={weekendChampionships} isAllSelected={isAllSelected} activeSelectedSet={activeSelectedSet} onToggleAll={handleToggleAll} onToggleSeries={handleToggleSeries} onClick={goToRound} /></>}
+    <main className="main-content"><header className="topbar"><button className="icon-button menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button><div className="breadcrumb">{page === 'week' ? <strong>This week</strong> : page === 'settings' ? <strong>Settings</strong> : <><span>Calendar</span><span className="slash">/</span><strong>{series}</strong></>}</div><div className="top-actions"><button className={`theme-toggle ${themeMode}`} onClick={() => setThemeMode((mode) => mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light')} aria-label={`Theme: ${themeMode}. Click to switch.`}><span>☼</span><span className={`theme-track mode-${themeMode}`}><i /></span><span className="auto-label">A</span><span>☾</span></button></div></header>
+      <div className="content-wrap">{page === 'settings' ? <SettingsPageView settings={settings} setSettings={setSettings} championships={championships} onLandingPage={selectLandingPage} timezoneLabel={displaySettings.timezoneLabel} /> : page === 'calendar' ? <>
+        <NextEventBanner sessions={liveSeriesSessions.length ? liveSeriesSessions : nextSession ? [nextSession] : []} now={now} onClick={goToRound} /><section className="page-heading"><div><p className="eyebrow accent">Race calendar <span className="heading-rule" /></p><h1>{series} <span>{year}</span></h1><p className="subheading">{series === 'More Racing' && moreRacingCategories.length > 0 ? `${rounds.length} races across ${moreRacingCategories.length} categories · Times shown in ${displaySettings.timezoneLabel}` : `${rounds.length} race weekends · Times shown in ${displaySettings.timezoneLabel}`}</p></div></section>{series === 'More Racing' && moreRacingCategories.length > 0 && <div className="category-filter-bar"><button className={`category-filter-pill ${isAllMoreRacingSelected ? 'active' : ''}`} onClick={handleToggleMoreRacingAll}>All categories <span className="count-pill">{rounds.length}</span></button>{moreRacingCategories.map((cat) => { const isSelected = !isAllMoreRacingSelected && activeMoreRacingSet.has(cat); const count = rounds.filter((r) => r.category === cat).length; return <button key={cat} className={`category-filter-pill ${isSelected ? 'active' : ''}`} onClick={() => handleToggleMoreRacingCategory(cat)}>{cat} <span className="count-pill">{count}</span></button>; })}</div>}<RaceWeekendSection title="Race weekends" rounds={activeRounds} onSelect={setSelectedRound} emptyMessage="No upcoming race weekends" />{elapsedRounds.length > 0 && <RaceWeekendSection title="Elapsed race weekends" rounds={elapsedRounds} onSelect={setSelectedRound} elapsed />}</> : <><NextEventBanner sessions={getLiveSessions(filteredWeekSessions, now).length ? getLiveSessions(filteredWeekSessions, now) : (() => { const next = getNextSession(filteredWeekSessions, now); return next ? [next] : []; })()} now={now} onClick={goToRound} /><VerticalWeekTimeline captureRef={weekCaptureRef} sessions={filteredWeekSessions} totalWeekSessions={weekSessions.length} now={now} weekOffset={weekOffset} weekendChampionships={weekendChampionships} isAllSelected={isAllSelected} activeSelectedSet={activeSelectedSet} onToggleAll={handleToggleAll} onToggleSeries={handleToggleSeries} onClick={goToRound} /></>}
         </div></main><div className={`scrim ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />{selectedRound && <RaceDetails round={selectedRound} now={now} onClose={() => setSelectedRound(null)} />}{showScrollTop && <button className="scroll-top-button" type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Scroll to top" title="Scroll to top">↑</button>}
-  </div>;
+  </div></DisplaySettingsContext.Provider>;
 }
 
 function NextEventBanner({ sessions, now, onClick }) {
+  const { timeFormat, fullDateFormat } = useDisplaySettings();
   if (!sessions.length) return <div className="next-event-banner empty"><span className="next-event-kicker">Next up</span><strong>No upcoming sessions in this season</strong></div>;
   return <div className={`next-event-banner ${sessions.length > 1 ? 'has-multiple' : ''}`}>{sessions.map((session) => {
     const live = isSessionLive(session, now);
@@ -303,6 +325,7 @@ function NextEventBanner({ sessions, now, onClick }) {
 }
 
 function RaceCard({ round, onClick }) {
+  const { timeFormat, fullDateFormat, rangeDateFormat } = useDisplaySettings();
   const mainRace = round.sessions.find((session) => session.name.toLowerCase() === 'race') ?? round.sessions.at(-1);
   const cardId = `race-round-${round.category ? `${round.category.toLowerCase().replace(/\s+/g, '-')}-` : ''}${round.round}`;
   return <button id={cardId} className={`race-card ${round.category ? 'has-category' : ''}`} onClick={onClick}><div className="card-topline"><div className="card-topline-meta">{round.category && <span className="card-category-pill">{round.category}</span>}<span>Round {String(round.round).padStart(2, '0')}</span></div><span className="card-arrow">↗</span></div><h3>{round.name}</h3><div className="card-date-range"><span>{formatOrNull(rangeDateFormat, round.start)}</span><span className="range-line" /><span>{formatOrNull(rangeDateFormat, round.finish)}</span></div><div className="main-race"><span className="race-flag">◆</span><span><small>Main race{formatDuration(mainRace?.duration) ? ` · ${formatDuration(mainRace.duration)}` : ''}</small><strong>{formatOrNull(fullDateFormat, mainRace?.date)} · {formatOrNull(timeFormat, mainRace?.date)}</strong></span></div></button>;
@@ -371,6 +394,8 @@ function ScreenshotButton({ targetRef, filename }) {
 }
 
 function VerticalWeekTimeline({ captureRef, sessions, totalWeekSessions = 0, now, onClick, weekOffset = 0, weekendChampionships = [], isAllSelected = true, activeSelectedSet = new Set(), onToggleAll, onToggleSeries, onPrevious = () => window.dispatchEvent(new CustomEvent('beetstop:previous-week')), onNext = () => window.dispatchEvent(new CustomEvent('beetstop:next-week')) }) {
+  const { timezoneLabel, timeFormat, fullDateFormat, rangeDateFormat } = useDisplaySettings();
+  const localTimezone = () => timezoneLabel;
   const liveSessions = getLiveSessions(sessions, now);
   const next = liveSessions[0] ?? sessions.find((session) => session.date > now);
   const currentSessionIndex = weekOffset === 0 ? sessions.findIndex((session) => session.date > now) : -1;
@@ -392,15 +417,17 @@ function VerticalWeekTimeline({ captureRef, sessions, totalWeekSessions = 0, now
     return `${activeSelectedSet.size} of ${weekendChampionships.length} championships`;
   }, [weekendChampionships, isAllSelected, activeSelectedSet]);
 
-  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>{getWeekTitle(sessions)}</h1><p className="subheading">{selectedSubtitle} · {localTimezone()} · Monday through next Monday</p></div><div className="week-toolbar"><button className="today-filter" type="button" disabled={!hasCurrentMarker} onClick={scrollToToday}>Today</button><ScreenshotButton targetRef={captureRef} filename="beetstop-this-week" /><div className="week-controls"><button onClick={onPrevious} aria-label="Previous week">‹</button><span className="week-session-count">{sessions.length} sessions</span><button onClick={onNext} aria-label="Next week">›</button></div></div></div>{weekendChampionships.length > 0 && <div className="category-filter-bar week-filter-bar"><button type="button" className={`category-filter-pill ${isAllSelected ? 'active' : ''}`} onClick={onToggleAll}>All championships <span className="count-pill">{totalWeekSessions}</span></button>{weekendChampionships.map((champ) => { const isSelected = !isAllSelected && activeSelectedSet.has(champ.name); return <button type="button" key={champ.name} className={`category-filter-pill ${isSelected ? 'active' : ''}`} onClick={() => onToggleSeries(champ.name)}><span className="pill-logo">{champ.name.slice(0, 2).toUpperCase()}</span><span>{champ.name}</span><span className="count-pill">{champ.count}</span></button>; })}</div>}<div className="tree-timeline" ref={captureRef} data-screenshot-target>{sessions.map((session, index) => { const live = isSessionLive(session, now); return <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''} ${live ? 'tree-live' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}>{index === markerSessionIndex && hasCurrentMarker && <span id="current-time-marker" className="current-week-marker" aria-label={`Current local time: ${timeFormat.format(now)}`}><span>{timeFormat.format(now)}</span></span>}<span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}{formatDuration(session.duration) ? ` · ${formatDuration(session.duration)}` : ''}</em>{live && <span className="live-badge">Live now</span>}</span></button>; })}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>{weekendChampionships.length > 0 && activeSelectedSet.size === 0 ? 'No championships selected' : 'No sessions this week'}</h3><p>{weekendChampionships.length > 0 && activeSelectedSet.size === 0 ? 'Click one or more championships above to view scheduled sessions.' : weekendChampionships.length > 0 ? 'No sessions match the selected championships.' : 'There are no scheduled sessions from Monday through next Monday.'}</p></div>}</section>;
+  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>{getWeekTitle(sessions, rangeDateFormat)}</h1><p className="subheading">{selectedSubtitle} · {localTimezone()} · Monday through next Monday</p></div><div className="week-toolbar"><button className="today-filter" type="button" disabled={!hasCurrentMarker} onClick={scrollToToday}>Today</button><ScreenshotButton targetRef={captureRef} filename="beetstop-this-week" /><div className="week-controls"><button onClick={onPrevious} aria-label="Previous week">‹</button><span className="week-session-count">{sessions.length} sessions</span><button onClick={onNext} aria-label="Next week">›</button></div></div></div>{weekendChampionships.length > 0 && <div className="category-filter-bar week-filter-bar"><button type="button" className={`category-filter-pill ${isAllSelected ? 'active' : ''}`} onClick={onToggleAll}>All championships <span className="count-pill">{totalWeekSessions}</span></button>{weekendChampionships.map((champ) => { const isSelected = !isAllSelected && activeSelectedSet.has(champ.name); return <button type="button" key={champ.name} className={`category-filter-pill ${isSelected ? 'active' : ''}`} onClick={() => onToggleSeries(champ.name)}><span className="pill-logo">{champ.name.slice(0, 2).toUpperCase()}</span><span>{champ.name}</span><span className="count-pill">{champ.count}</span></button>; })}</div>}<div className="tree-timeline" ref={captureRef} data-screenshot-target>{sessions.map((session, index) => { const live = isSessionLive(session, now); return <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''} ${live ? 'tree-live' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}>{index === markerSessionIndex && hasCurrentMarker && <span id="current-time-marker" className="current-week-marker" aria-label={`Current local time: ${timeFormat.format(now)}`}><span>{timeFormat.format(now)}</span></span>}<span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}{formatDuration(session.duration) ? ` · ${formatDuration(session.duration)}` : ''}</em>{live && <span className="live-badge">Live now</span>}</span></button>; })}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>{weekendChampionships.length > 0 && activeSelectedSet.size === 0 ? 'No championships selected' : 'No sessions this week'}</h3><p>{weekendChampionships.length > 0 && activeSelectedSet.size === 0 ? 'Click one or more championships above to view scheduled sessions.' : weekendChampionships.length > 0 ? 'No sessions match the selected championships.' : 'There are no scheduled sessions from Monday through next Monday.'}</p></div>}</section>;
 }
 
 function LegacyWeekTimeline({ sessions, now, onClick }) {
+  const { timezoneLabel, timeFormat, fullDateFormat, rangeDateFormat } = useDisplaySettings();
+  const localTimezone = () => timezoneLabel;
   const next = sessions.find((session) => session.date > now);
-  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>{getWeekTitle(sessions)}</h1><p className="subheading">All championships · {localTimezone()} · Monday through next Monday</p></div><div className="week-controls"><button onClick={() => window.dispatchEvent(new CustomEvent('beetstop:previous-week'))} aria-label="Previous week">‹</button><span className="week-session-count">{sessions.length} sessions</span><button onClick={() => window.dispatchEvent(new CustomEvent('beetstop:next-week'))} aria-label="Next week">›</button></div></div><div className="tree-timeline">{sessions.map((session, index) => <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}><span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}</em></span></button>)}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>There are no scheduled sessions from Monday through next Monday.</p></div>}</section>;
+  return <section className="vertical-week"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>{getWeekTitle(sessions, rangeDateFormat)}</h1><p className="subheading">All championships · {localTimezone()} · Monday through next Monday</p></div><div className="week-controls"><button onClick={() => window.dispatchEvent(new CustomEvent('beetstop:previous-week'))} aria-label="Previous week">‹</button><span className="week-session-count">{sessions.length} sessions</span><button onClick={() => window.dispatchEvent(new CustomEvent('beetstop:next-week'))} aria-label="Next week">›</button></div></div><div className="tree-timeline">{sessions.map((session, index) => <button className={`tree-event ${index % 2 ? 'tree-right' : 'tree-left'} ${session === next ? 'tree-next' : ''}`} key={`${session.iso}-${session.series}-${session.name}`} onClick={() => onClick(session.round)}><span className="tree-node">{session.name.toLowerCase() === 'race' ? '◆' : '•'}</span><span className="tree-card"><small>{fullDateFormat.format(session.date)} · {timeFormat.format(session.date)}</small><strong>{session.round.name}</strong><em>{session.name.replaceAll('_', ' ')} · {session.series}</em></span></button>)}</div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>There are no scheduled sessions from Monday through next Monday.</p></div>}</section>;
 }
 
-function getWeekTitle(sessions) {
+function getWeekTitle(sessions, rangeDateFormat) {
   if (!sessions.length) return 'No Races this week :(';
   const first = new Date(sessions[0].date); const last = new Date(sessions.at(-1).date);
   const today = new Date(); const currentDay = (today.getDay() + 6) % 7; const thisMonday = new Date(today); thisMonday.setDate(today.getDate() - currentDay); thisMonday.setHours(0, 0, 0, 0);
@@ -411,15 +438,19 @@ function getWeekTitle(sessions) {
 }
 
 function WeekTimeline({ sessions, now, onClick }) {
+  const { timezoneLabel, timeFormat, weekdayFormat } = useDisplaySettings();
+  const localTimezone = () => timezoneLabel;
   const start = new Date(now); const day = (start.getDay() + 6) % 7;
   start.setDate(start.getDate() - day); start.setHours(0, 0, 0, 0);
   const timelineHours = 8 * 24; const end = new Date(start); end.setHours(timelineHours);
   const days = Array.from({ length: 8 }, (_, index) => { const date = new Date(start); date.setDate(date.getDate() + index); return date; });
   const currentPosition = Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100));
-  return <section className="week-page"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>This week</h1><p className="subheading">All championships · {localTimezone()} · Includes next Monday overflow</p></div><span className="week-session-count">{sessions.length} sessions</span></div><div className="timeline-shell"><div className="timeline-head"><div className="timeline-spacer" />{days.map((date, index) => <div className={`timeline-day ${date.toDateString() === now.toDateString() ? 'today' : ''}`} key={date.toISOString()}><span>{index === 7 ? 'Next Mon' : date.toLocaleDateString(undefined, { weekday: 'short' })}</span><strong>{date.getDate()}</strong></div>)}</div><div className="timeline-body"><div className="time-axis">{[0, 6, 12, 18].map((hour) => <span style={{ top: `${(hour / 24) * 100}%` }} key={hour}>{String(hour).padStart(2, '0')}:00</span>)}</div><div className="timeline-track">{days.map((_, index) => <span className="day-grid-line" style={{ left: `${(index / 8) * 100}%` }} key={index} />)}<span className="day-grid-line" style={{ left: '100%' }} />{now >= start && now < end && <span className="current-time-line" style={{ left: `${currentPosition}%` }}><i>NOW</i></span>}{sessions.map((session) => { const position = ((session.date - start) / (end - start)) * 100; return <button className={`timeline-event ${session.name.toLowerCase() === 'race' ? 'race-session' : ''}`} style={{ left: `${position}%` }} onClick={() => onClick(session.round)} key={`${session.iso}-${session.name}-${session.series}`} title={`${session.round.name} · ${session.name}`}><span className="event-point" /><span className="event-label"><strong>{session.name.replaceAll('_', ' ')}</strong><small>{session.round.name} · {session.series}</small><em>{timeFormat.format(session.date)}</em></span></button>; })}</div></div></div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>There are no scheduled sessions from Monday through next Monday.</p></div>}</section>;
+  return <section className="week-page"><div className="page-heading week-heading"><div><p className="eyebrow accent">Live schedule <span className="heading-rule" /></p><h1>This week</h1><p className="subheading">All championships · {localTimezone()} · Includes next Monday overflow</p></div><span className="week-session-count">{sessions.length} sessions</span></div><div className="timeline-shell"><div className="timeline-head"><div className="timeline-spacer" />{days.map((date, index) => <div className={`timeline-day ${date.toDateString() === now.toDateString() ? 'today' : ''}`} key={date.toISOString()}><span>{index === 7 ? 'Next Mon' : weekdayFormat.format(date)}</span><strong>{date.getDate()}</strong></div>)}</div><div className="timeline-body"><div className="time-axis">{[0, 6, 12, 18].map((hour) => <span style={{ top: `${(hour / 24) * 100}%` }} key={hour}>{String(hour).padStart(2, '0')}:00</span>)}</div><div className="timeline-track">{days.map((_, index) => <span className="day-grid-line" style={{ left: `${(index / 8) * 100}%` }} key={index} />)}<span className="day-grid-line" style={{ left: '100%' }} />{now >= start && now < end && <span className="current-time-line" style={{ left: `${currentPosition}%` }}><i>NOW</i></span>}{sessions.map((session) => { const position = ((session.date - start) / (end - start)) * 100; return <button className={`timeline-event ${session.name.toLowerCase() === 'race' ? 'race-session' : ''}`} style={{ left: `${position}%` }} onClick={() => onClick(session.round)} key={`${session.iso}-${session.name}-${session.series}`} title={`${session.round.name} · ${session.name}`}><span className="event-point" /><span className="event-label"><strong>{session.name.replaceAll('_', ' ')}</strong><small>{session.round.name} · {session.series}</small><em>{timeFormat.format(session.date)}</em></span></button>; })}</div></div></div>{!sessions.length && <div className="empty-state timeline-empty"><span>◎</span><h3>No sessions this week</h3><p>There are no scheduled sessions from Monday through next Monday.</p></div>}</section>;
 }
 
 function RaceDetails({ round, now, onClose }) {
+  const { timezoneLabel, timeFormat, fullDateFormat, rangeDateFormat } = useDisplaySettings();
+  const localTimezone = () => timezoneLabel;
   const detailsRef = useRef(null);
   return <div className="modal-backdrop" onClick={onClose}><section ref={detailsRef} data-screenshot-target className="details-panel" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${round.name} details`}><div className="details-header"><div><p className="eyebrow accent">{round.category ? <><span className="category-pill-accent">{round.category}</span> · </> : null}Round {String(round.round).padStart(2, '0')} · {formatOrNull(rangeDateFormat, round.start)}</p><h2>{round.name}</h2></div><div className="details-actions"><ScreenshotButton targetRef={detailsRef} filename={`${round.name.replaceAll(' ', '-').toLowerCase()}-details`} /><button className="close-button" onClick={onClose} aria-label="Close details">×</button></div></div><p className="details-timezone">All times in <strong>{localTimezone()}</strong></p><div className="session-list">{round.sessions.map((session) => { const calendarUrl = isSessionElapsed(session, now) ? null : googleCalendarUrl(session, round.name); return <div className={`session-row ${session.name.toLowerCase() === 'race' ? 'featured' : ''}`} key={`${session.name}-${session.iso}`}><span className="session-dot" /><span className="session-name">{session.name.replaceAll('_', ' ')}{calendarUrl && <a className="calendar-icon" href={calendarUrl} target="_blank" rel="noreferrer" data-html2canvas-ignore="true" aria-label={`Add ${session.name.replaceAll('_', ' ')} to Google Calendar`}>📅</a>}</span><span className="session-date">{formatOrNull(fullDateFormat, session.date)}</span><strong className="session-time">{formatOrNull(timeFormat, session.date)}{formatDuration(session.duration) ? <small className="session-duration">{formatDuration(session.duration)}</small> : null}</strong></div>; })}</div></section></div>;
 }
