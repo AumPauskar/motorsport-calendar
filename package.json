@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
+    "lucide-react": "^1.53.0",
     "react": "latest",
     "react-dom": "latest",
     "vite": "latest"

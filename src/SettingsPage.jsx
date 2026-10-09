@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 function getTimezoneOffset(timeZone) {
   try {
@@ -33,7 +34,7 @@ export default function SettingsPage({ settings, setSettings, championships, onL
   </section>;
 }
 
-function StyledDropdown({ id, label, value, options, onChange }) {
+export function StyledDropdown({ id, label, value, options, onChange }) {
   const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(selectedIndex);
@@ -82,7 +83,7 @@ function StyledDropdown({ id, label, value, options, onChange }) {
   return <div className={`landing-select ${open ? 'is-open' : ''}`} ref={rootRef}>
     <button className="landing-select-trigger" type="button" role="combobox" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open ? `${listId}-${activeIndex}` : undefined} onClick={() => { setActiveIndex(selectedIndex); setOpen((current) => !current); }} onKeyDown={handleKeyDown}>
       <span className="landing-select-copy"><strong>{options[selectedIndex].label}</strong><small>{options[selectedIndex].description}</small></span>
-      <span className="landing-select-chevron" aria-hidden="true"><i /></span>
+      <span className="landing-select-chevron" aria-hidden="true"><ChevronDown size={16} strokeWidth={2.25} /></span>
     </button>
     {open && <div className="landing-select-menu" id={listId} role="listbox" aria-label={`Choose ${label.toLowerCase()}`}>
       {options.map((option, index) => <div className={`landing-select-option ${index === selectedIndex ? 'selected' : ''} ${index === activeIndex ? 'active' : ''}`} id={`${listId}-${index}`} key={option.value} role="option" aria-selected={index === selectedIndex} onMouseEnter={() => setActiveIndex(index)} onClick={() => choose(index)}>
@@ -158,7 +159,7 @@ function TimezoneSelect({ value, onChange }) {
   return <div className={`landing-select timezone-select ${open ? 'is-open' : ''}`} ref={rootRef}>
     <button className="landing-select-trigger" type="button" aria-label={`Timezone: ${selected?.label ?? value}`} aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} onClick={() => open ? close() : openPicker()} ref={triggerRef}>
       <span className="landing-select-copy"><strong>{selected?.offset ?? 'UTC+00:00'}</strong><small>{selected?.label ?? value}</small></span>
-      <span className="landing-select-chevron" aria-hidden="true"><i /></span>
+      <span className="landing-select-chevron" aria-hidden="true"><ChevronDown size={16} strokeWidth={2.25} /></span>
     </button>
     {open && <div className="landing-select-menu timezone-select-menu">
       <div className="timezone-search-wrap"><input className="timezone-search-input" type="search" role="combobox" aria-label="Search timezones" aria-autocomplete="list" aria-expanded="true" aria-controls={`${listId}-list`} aria-activedescendant={filteredOptions.length ? `${listId}-${activeIndex}` : undefined} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={handleKeyDown} placeholder="Search city or UTC offset" ref={searchRef} /></div>
