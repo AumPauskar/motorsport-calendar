@@ -288,7 +288,18 @@ export default function App() {
     setSettings((current) => ({ ...current, landingPage }));
   }
   function goToRound(round) {
-    setSelectedRound(round);
+    if (round.sessions) {
+      setSelectedRound(round);
+      return;
+    }
+    const sessions = Object.entries(round.details ?? {}).map(([name, iso]) => ({
+      name,
+      date: iso ? new Date(iso) : null,
+      iso,
+      duration: getSessionDuration(round, name, round.championship),
+    }));
+    const datedSessions = sessions.filter((session) => session.date && !Number.isNaN(session.date.getTime())).sort((a, b) => a.date - b.date);
+    setSelectedRound({ ...round, sessions, start: datedSessions[0]?.date ?? null, finish: datedSessions.at(-1)?.date ?? null });
   }
   if (!data) return <div className="loading-screen">Loading race data<span>•</span></div>;
 
