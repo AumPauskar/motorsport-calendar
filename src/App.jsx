@@ -77,10 +77,12 @@ function getDurationMap(championship) {
 function getSessionDuration(round, name, championship) {
   const isRace = name.toLowerCase() === 'race';
   if (isRace && Number.isFinite(Number(round?.['race-duration']))) return Number(round['race-duration']);
-  const durationMap = getDurationMap(championship);
-  if (Number.isFinite(Number(durationMap[name]))) return Number(durationMap[name]);
   const baseName = name.replace(/_[0-9]+$/, '');
-  return Number.isFinite(Number(durationMap[baseName])) ? Number(durationMap[baseName]) : null;
+  for (const durationMap of [getDurationMap(round), getDurationMap(championship)]) {
+    if (Number.isFinite(Number(durationMap[name]))) return Number(durationMap[name]);
+    if (Number.isFinite(Number(durationMap[baseName]))) return Number(durationMap[baseName]);
+  }
+  return null;
 }
 
 function formatDuration(minutes) {
@@ -311,8 +313,16 @@ export default function App() {
 
 function NextEventBanner({ sessions, now, onClick }) {
   const { timeFormat, fullDateFormat } = useDisplaySettings();
-  if (!sessions.length) return <div className="next-event-banner empty"><span className="next-event-kicker">Next up</span><strong>No upcoming sessions in this season</strong></div>;
-  return <div className={`next-event-banner ${sessions.length > 1 ? 'has-multiple' : ''}`}>{sessions.map((session) => {
+  const isWeekSchedule = sessions.some((session) => session.series);
+  const liveSessions = getLiveSessions(sessions, now);
+  const displaySessions = liveSessions.length ? liveSessions : [getNextSession(sessions, now)].filter(Boolean);
+  if (!displaySessions.length) return <div className="next-event-banner empty"><span className="next-event-kicker">Next up</span><strong>No upcoming sessions in this season</strong></div>;
+  const concurrentWeekSessions = isWeekSchedule ? liveSessions : [];
+  if (concurrentWeekSessions.length > 1) return <div className="next-event-banner concurrent-live"><span className="next-event-kicker"><i />Live now</span><div className="concurrent-live-content"><div className="concurrent-live-list">{concurrentWeekSessions.map((session) => {
+    const end = new Date(session.date.getTime() + session.duration * 60000);
+    return <button className="concurrent-live-entry" onClick={() => onClick(session.round)} key={`${session.series}-${session.iso}-${session.name}`} aria-label={`Open ${session.round.name} ${session.name.replaceAll('_', ' ')} details`}><strong>{session.round.name}</strong><small>{session.series} · {session.name.replaceAll('_', ' ')} · ends {timeFormat.format(end)}{formatDuration(session.duration) ? ` · ${formatDuration(session.duration)}` : ''}</small></button>;
+  })}</div><span className="live-status concurrent-live-count">{concurrentWeekSessions.length} LIVE</span></div></div>;
+  return <div className={`next-event-banner ${displaySessions.length > 1 ? 'has-multiple' : ''}`}>{displaySessions.map((session) => {
     const live = isSessionLive(session, now);
     const end = live ? new Date(session.date.getTime() + session.duration * 60000) : null;
     const remaining = Math.max(0, (live ? end : session.date) - now);
