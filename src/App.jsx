@@ -367,6 +367,11 @@ function ScreenshotButton({ targetRef, filename }) {
         const target = clonedDocument.querySelector(`[data-screenshot-target="${captureId}"]`);
         if (!target) return;
         target.style.position = 'relative';
+        if (target.classList.contains('details-panel')) {
+          target.style.maxHeight = 'none';
+          target.style.height = 'auto';
+          target.style.overflow = 'visible';
+        }
         const watermark = clonedDocument.createElement('div');
         watermark.textContent = 'taken on 🅱️eetstop';
         watermark.style.cssText = 'position:absolute;right:18px;bottom:14px;padding:6px 9px;border-radius:4px;background:rgba(23,23,23,.82);color:#fff;font:10px "DM Mono",monospace;letter-spacing:.04em;z-index:20;';
