@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import './styles/settings.css';
 
 function getTimezoneOffset(timeZone) {
   try {
