@@ -85,3 +85,14 @@
 .sidebar-scroll{overflow-y:auto;min-height:0}.sidebar-bottom{flex-shrink:0;max-height:58vh;overflow-y:auto;border-top:1px solid rgba(23,23,23,.2);padding:14px 20px 0}.sidebar-settings summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;margin:0;padding:5px 0 12px}.sidebar-settings summary::-webkit-details-marker{display:none}.sidebar-settings[open] summary span{transform:rotate(180deg)}.sidebar-settings summary span{font-size:17px;line-height:10px;transition:transform .18s}.settings-fields{display:grid;gap:10px;padding-bottom:14px}.settings-field{display:grid;gap:5px;font-size:10px;font-weight:700}.settings-field select,.settings-field input{width:100%;min-width:0;border:1px solid rgba(23,23,23,.24);border-radius:5px;background:rgba(255,255,255,.42);color:#171717;padding:8px 9px;font-size:11px}.settings-field select:focus-visible,.settings-field input:focus-visible{outline:2px solid #171717;outline-offset:1px}.sidebar-footer-label{padding:14px 5px 17px;font:9px "DM Mono",monospace;text-transform:uppercase;letter-spacing:.12em;display:flex;justify-content:space-between}.sidebar-footer-label .live-dot{margin-top:2px}
 .sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;min-height:0;overflow:hidden}.sidebar-scroll{min-height:0;overflow-y:auto}
 @media(max-width:850px){.sidebar{position:fixed;left:-270px;top:0;align-self:auto}.sidebar.open{left:0}}
+.race-card.cancelled,
+.race-card:disabled{opacity:.45;filter:grayscale(1);border-color:var(--line);cursor:not-allowed}
+.race-card.cancelled:hover,
+.race-card:disabled:hover{opacity:.45;border-color:var(--line);box-shadow:var(--shadow);transform:none}
+.race-card.cancelled:after,
+.race-card:disabled:after{background:var(--muted);opacity:.05}
+.card-status-pill.cancelled{background:rgba(120,120,120,.16);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:2px 7px;font:9px "DM Mono",monospace;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+[data-theme=dark] .race-card.cancelled,
+[data-theme=dark] .race-card:disabled{opacity:.4;filter:grayscale(1);border-color:var(--line)}
+[data-theme=dark] .card-status-pill.cancelled{background:rgba(255,255,255,.08);color:var(--muted);border-color:var(--line)}
+.session-row.cancelled-session{opacity:.6}

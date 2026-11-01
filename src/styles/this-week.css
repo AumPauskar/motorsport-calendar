@@ -15,3 +15,14 @@
 .live-status,.live-badge{font:10px "DM Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#fff;background:#d93636;border-radius:4px;padding:6px 8px;white-space:nowrap}.tree-live .tree-card{border-color:#d93636;box-shadow:0 0 0 2px rgba(217,54,54,.16),var(--shadow)}.tree-live .tree-node{background:#d93636;color:#fff;box-shadow:0 0 0 2px #8b8980,0 0 0 7px rgba(217,54,54,.2)}.tree-live .live-badge{align-self:flex-start;margin-top:2px;padding:4px 6px;font-size:9px}
 .weekend-championships-panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 22px 20px;margin-bottom:34px;box-shadow:var(--shadow);transition:border-color .2s,box-shadow .2s}
 @media(max-width:700px){.weekend-championships-panel{padding:12px;margin-bottom:24px}.weekend-championships-sublist{padding-top:12px}.weekend-checkboxes-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.championship-checkbox-card{gap:5px;padding:6px;min-height:42px}.series-logo-pill{width:18px;height:18px;font-size:8px}.champ-name{font-size:10px}.champ-count{font-size:8px}}
+.tree-event.cancelled,
+.tree-event:disabled{opacity:.45;filter:grayscale(1);cursor:not-allowed}
+.tree-event.cancelled:hover .tree-card,
+.tree-event:disabled:hover .tree-card{transform:none;box-shadow:var(--shadow)}
+.tree-event.cancelled .tree-card,
+.tree-event:disabled .tree-card{border-bottom-color:var(--line);cursor:not-allowed}
+.tree-event.cancelled .tree-node,
+.tree-event:disabled .tree-node{background:var(--muted);color:var(--paper);box-shadow:0 0 0 2px #8b8980}
+.tree-event.cancelled .tree-card small,
+.tree-event:disabled .tree-card small{background:rgba(120,120,120,.12);color:var(--muted)}
+.cancelled-badge{font:10px "DM Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:#fff;background:#77756d;border-radius:4px;padding:4px 6px;white-space:nowrap;align-self:flex-start;margin-top:2px;font-size:9px}
