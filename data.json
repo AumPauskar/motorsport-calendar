@@ -655,6 +655,7 @@
         {
           "round": 14,
           "name": "Rally Saudi Arabia",
+          "status": "cancelled",
           "details": {
             "Start": "2026-11-11",
             "End": "2026-11-14"
