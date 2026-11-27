@@ -141,20 +141,20 @@
           "round": 13,
           "name": "Qatar Grand Prix",
           "details": {
-            "Practice": null,
-            "Qualifying": null,
-            "Sprint": null,
-            "Feature_Race": null
+            "Practice": "2026-11-27T11:00:00Z",
+            "Qualifying": "2026-11-27T15:00:00Z",
+            "Sprint": "2026-11-28T16:15:00Z",
+            "Feature_Race": "2026-11-29T12:00:00Z"
           }
         },
         {
           "round": 14,
           "name": "Abu Dhabi Grand Prix",
           "details": {
-            "Practice": null,
-            "Qualifying": null,
-            "Sprint": null,
-            "Feature_Race": null
+            "Practice": "2026-12-04T07:05:00Z",
+            "Qualifying": "2026-12-04T11:00:00Z",
+            "Sprint": "2026-12-05T12:15:00Z",
+            "Feature_Race": "2026-12-06T09:15:00Z"
           }
         }
       ]
